@@ -1,0 +1,17 @@
+node_modules/
+.deploy/
+.next/
+.next-*/
+dist/
+.env
+.env.*.local
+*.db
+*.db-shm
+*.db-wal
+.data/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store
+apps/dashboard/public/house-edge.js
+apps/dashboard/public/house-edge.js.map

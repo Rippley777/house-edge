@@ -1,0 +1,40 @@
+import { Activity, ArrowLeftRight, Bell, BookOpen, Boxes, CalendarDays, Clock3, Code2, Command, Compass, Eye, Flame, FolderKanban, Gauge, GitBranch, GitCompare, HeartPulse, KeyRound, LayoutDashboard, ListFilter, Network, Radio, Route, Settings2, ShieldAlert, Skull, Sparkles, Star, Target, TrendingUp, Users, Workflow, Zap } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+export interface ViewDefinition { title: string; subtitle: string; icon: LucideIcon; group: string; }
+export const views: Record<string, ViewDefinition> = {
+  overview: { title: 'Overview', subtitle: 'The big picture. Every application, in sight.', icon: LayoutDashboard, group: '' },
+  live: { title: 'Live Activity', subtitle: 'A front-row seat to everything happening across your applications.', icon: Radio, group: '' },
+  projects: { title: 'Projects', subtitle: 'Every application in your ecosystem, all in one place.', icon: Boxes, group: 'ANALYTICS' },
+  events: { title: 'Event Explorer', subtitle: 'Every action tells a story. Get into the details.', icon: Activity, group: 'ANALYTICS' },
+  sessions: { title: 'Session Explorer', subtitle: 'Follow the path from first impression to final interaction.', icon: Compass, group: 'ANALYTICS' },
+  users: { title: 'Users', subtitle: 'Understand the people behind the activity. Anonymous by default.', icon: Users, group: 'ANALYTICS' },
+  journeys: { title: 'User Journeys', subtitle: 'Discover the paths your users actually take.', icon: Route, group: 'ANALYTICS' },
+  funnels: { title: 'Funnels', subtitle: 'See where people convert, and where they walk away.', icon: ListFilter, group: 'ANALYTICS' },
+  retention: { title: 'Retention', subtitle: 'Find out what brings people back.', icon: Clock3, group: 'ANALYTICS' },
+  features: { title: 'Feature Adoption', subtitle: 'Know what gets used. Build more of what matters.', icon: Target, group: 'ANALYTICS' },
+  errors: { title: 'Errors', subtitle: 'Catch the bad beats before your users do.', icon: ShieldAlert, group: 'OBSERVABILITY' },
+  performance: { title: 'Performance', subtitle: 'Every millisecond matters. See where yours go.', icon: Gauge, group: 'OBSERVABILITY' },
+  releases: { title: 'Releases', subtitle: 'Know what changed when you shipped.', icon: GitBranch, group: 'OBSERVABILITY' },
+  health: { title: 'Project Health', subtitle: 'Independent signals. A clear picture of each application.', icon: HeartPulse, group: 'OBSERVABILITY' },
+  anomalies: { title: 'Anomalies', subtitle: 'Unusual activity, measured against your actual baseline.', icon: Zap, group: 'OBSERVABILITY' },
+  pulse: { title: 'Pulse', subtitle: 'What changed across your applications.', icon: Sparkles, group: 'INSIGHTS' },
+  graveyard: { title: 'The Graveyard', subtitle: 'Features and pages your users have stopped using.', icon: Skull, group: 'INSIGHTS' },
+  rising: { title: 'Rising Features', subtitle: 'The features finding their hot streak.', icon: TrendingUp, group: 'INSIGHTS' },
+  compare: { title: 'Compare Projects', subtitle: 'Head to head. See how your applications stack up.', icon: ArrowLeftRight, group: 'INSIGHTS' },
+  ecosystem: { title: 'Ecosystem Map', subtitle: 'Your entire software ecosystem, connected by real traffic.', icon: Network, group: 'INSIGHTS' },
+  relationships: { title: 'Event Relationships', subtitle: 'A constellation of behavior, connected by event transitions.', icon: Workflow, group: 'INSIGHTS' },
+  heatmap: { title: 'Activity Heatmap', subtitle: 'The rhythm of your ecosystem, one day at a time.', icon: CalendarDays, group: 'INSIGHTS' },
+  snapshot: { title: 'Historical Snapshot', subtitle: 'Turn back the clock. Explore a day in your ecosystem.', icon: Eye, group: 'INSIGHTS' },
+  saved: { title: 'Saved Views', subtitle: 'Your most useful perspectives, always within reach.', icon: Star, group: 'TOOLS' },
+  alerts: { title: 'Alerts', subtitle: 'Know when your applications need attention.', icon: Bell, group: 'TOOLS' },
+  keys: { title: 'Projects & API Keys', subtitle: 'Connect your applications. Keep access under control.', icon: KeyRound, group: 'SYSTEM' },
+  settings: { title: 'Settings', subtitle: 'Your workspace, your rules.', icon: Settings2, group: 'SYSTEM' },
+  docs: { title: 'Integration Guide', subtitle: 'A few lines of code. The whole picture.', icon: BookOpen, group: 'SYSTEM' },
+};
+export const navGroups = [
+  { title: '', items: ['overview', 'live'] },
+  { title: 'ANALYTICS', items: ['projects', 'events', 'sessions', 'funnels', 'retention', 'features'], more: ['users', 'journeys'] },
+  { title: 'OBSERVABILITY', items: ['errors', 'performance', 'releases', 'anomalies'], more: ['health'] },
+  { title: 'INSIGHTS', items: ['pulse', 'graveyard', 'rising', 'ecosystem'], more: ['compare', 'relationships', 'heatmap', 'snapshot'] },
+  { title: 'TOOLS', items: ['saved', 'alerts'] },
+];

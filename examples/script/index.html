@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>House Edge integration example</title></head>
+<body>
+  <h1>Your application</h1>
+  <button id="analyze">Analyze repository</button>
+  <!-- Replace the collector URL and key, and allowlist this page's HTTP(S) origin. -->
+  <script async src="http://localhost:3000/house-edge.js" data-project="repo-reaper" data-key="YOUR_BROWSER_INGESTION_KEY" data-version="1.4.2"></script>
+  <script>
+    document.getElementById('analyze').addEventListener('click', function () {
+      window.houseEdge?.track('repository_analyzed', { language: 'Rust', durationMs: 1421 });
+    });
+  </script>
+</body></html>

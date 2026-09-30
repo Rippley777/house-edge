@@ -1,0 +1,8 @@
+{
+  "license": "SEE LICENSE IN LICENSE",
+  "name": "@house-edge/collector",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "type": "module"
+}

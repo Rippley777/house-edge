@@ -1,0 +1,54 @@
+{
+  "license": "SEE LICENSE IN LICENSE",
+  "name": "house-edge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "predev": "npm run build:sdk",
+    "dev": "npm run dev -w @house-edge/dashboard --",
+    "build": "npm run build:sdk && npm run build -w @house-edge/dashboard",
+    "start": "npm run start -w @house-edge/dashboard --",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:maintain": "tsx scripts/maintain.ts",
+    "build:sdk": "tsx scripts/build-sdk.ts"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^18.0.4",
+    "lucide-react": "^0.468.0",
+    "mssql": "^12.7.2",
+    "next": "16.3.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "^3.0.0",
+    "web-vitals": "^6.2.2",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/mssql": "^9.1.8",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

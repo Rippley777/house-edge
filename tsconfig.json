@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "es2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@house-edge/shared": ["packages/shared/src/index.ts"],
+      "@house-edge/database": ["packages/database/src/index.ts"],
+      "@house-edge/database/*": ["packages/database/src/*"],
+      "@house-edge/engine": ["packages/analytics-engine/src/index.ts"],
+      "@house-edge/engine/*": ["packages/analytics-engine/src/*"],
+      "@house-edge/collector": ["apps/collector/src/index.ts"],
+      "@house-edge/analytics": ["packages/sdk-browser/src/index.ts"],
+      "@/*": ["apps/dashboard/*"]
+    }
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "playwright.config.ts"],
+  "exclude": ["node_modules", "**/dist", "**/.next"]
+}

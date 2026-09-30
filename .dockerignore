@@ -1,0 +1,13 @@
+node_modules
+.deploy
+**/node_modules
+**/.next*
+.data
+.env
+.env.*.local
+.git
+test-results
+playwright-report
+**/dist
+*.tsbuildinfo
+apps/dashboard/public/house-edge.js*
