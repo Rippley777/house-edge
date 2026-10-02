@@ -1,0 +1,438 @@
+'use client';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Globe2, Info, LocateFixed, ShieldCheck } from 'lucide-react';
+import type { GeographyData, GeographyPoint } from '../../../packages/shared/src/geography';
+import { useFetch, type ViewProps } from './dashboard';
+import { Empty, Panel, number, date } from './ui';
+
+const GeographyMap = dynamic(() => import('./login-geography-map'), {
+  ssr: false,
+  loading: () => <GeographyLoading />,
+});
+const explanation =
+  'Locations are estimated from network information and may represent a city, region, VPN endpoint, mobile carrier gateway, or corporate network rather than the user’s exact physical location.';
+export function GeographyLoading() {
+  return (
+    <div className="geo-skeleton" role="status" aria-label="Loading Login Geography">
+      <div />
+      <div />
+      <div />
+      <span>Loading login locations…</span>
+    </div>
+  );
+}
+export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps) {
+  const router = useRouter(),
+    params = useSearchParams();
+  const [automatic, setAutomatic] = useState('country');
+  const [selected, setSelected] = useState<string | null>(null),
+    [reset, setReset] = useState(0);
+  const [sort, setSort] = useState<keyof GeographyPoint>('totalEvents'),
+    [ascending, setAscending] = useState(false);
+  const [mapTheme, setMapTheme] = useState<'dark' | 'light'>('dark');
+  const mode = params.get('mode') === 'heatmap' ? 'heatmap' : 'clusters';
+  const metric = params.get('metric') === 'users' ? 'users' : 'events';
+  const granularity = params.get('granularity') || 'auto';
+  const q = new URLSearchParams(query);
+  for (const key of ['environment', 'provider', 'country', 'region', 'success', 'metric', 'minEvents', 'sample']) {
+    const value = params.get(key);
+    if (value) q.set(key, value);
+  }
+  q.set('granularity', granularity === 'auto' ? automatic : granularity);
+  const result = useFetch<GeographyData>(`/api/login-geography?${q}`, Number(params.get('geoRevision') || 0));
+  const update = (key: string, value: string) => {
+    const p = new URLSearchParams(params);
+    if (value) p.set(key, value);
+    else p.delete(key);
+    router.push(`/login-geography?${p}`);
+    setSelected(null);
+  };
+  const data = result.data;
+  useEffect(() => {
+    if (data) setGeographyDetail(data.granularity);
+  }, [data, setGeographyDetail]);
+  const rows = useMemo(
+    () =>
+      [...(data?.locations || [])].sort((a, b) => {
+        const av = a[sort],
+          bv = b[sort];
+        const comparison =
+          typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av || '').localeCompare(String(bv || ''));
+        return ascending ? comparison : -comparison;
+      }),
+    [data, sort, ascending],
+  );
+  const point = data?.locations.find((p) => p.id === selected);
+  const fitKey = [
+    q.get('from'),
+    q.get('to'),
+    q.get('project'),
+    q.get('environment'),
+    q.get('success'),
+    q.get('provider'),
+    q.get('country'),
+    q.get('region'),
+  ].join('|');
+  const stableFitKey = useRef(fitKey);
+  if (!result.loading) stableFitKey.current = fitKey;
+  const retry = () => {
+    refresh();
+    update('geoRevision', String(Date.now()));
+  };
+  const sortBy = (key: keyof GeographyPoint) => {
+    if (sort === key) setAscending(!ascending);
+    else {
+      setSort(key);
+      setAscending(false);
+    }
+  };
+  return (
+    <div className="geography-view" aria-busy={result.loading}>
+      <div className="geo-controls">
+        <label>
+          Environment
+          <select
+            aria-label="Login environment"
+            value={params.get('environment') || ''}
+            onChange={(e) => update('environment', e.target.value)}
+          >
+            <option value="">All environments</option>
+            {['production', 'staging', 'development', 'test'].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Login result
+          <select
+            aria-label="Login result"
+            value={params.get('success') || 'success'}
+            onChange={(e) => update('success', e.target.value)}
+          >
+            <option value="success">Successful logins</option>
+            <option value="failure">Failed logins</option>
+            <option value="all">All login events</option>
+          </select>
+        </label>
+        <label>
+          Measure
+          <select aria-label="Login measure" value={metric} onChange={(e) => update('metric', e.target.value)}>
+            <option value="events">Total login events</option>
+            <option value="users">Unique users</option>
+          </select>
+        </label>
+        <label>
+          Detail
+          <select
+            aria-label="Map granularity"
+            value={granularity}
+            onChange={(e) => update('granularity', e.target.value)}
+          >
+            <option value="auto">Automatic by zoom</option>
+            <option value="country">Country</option>
+            <option value="region">Region</option>
+            <option value="city">City</option>
+          </select>
+        </label>
+        <label>
+          Auth provider
+          <input
+            aria-label="Authentication provider"
+            key={`provider-${params.get('provider')}`}
+            defaultValue={params.get('provider') || ''}
+            placeholder="All providers"
+            onBlur={(e) => update('provider', e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+          />
+        </label>
+        <label>
+          Country
+          <input
+            aria-label="Login country"
+            key={`country-${params.get('country')}`}
+            defaultValue={params.get('country') || ''}
+            placeholder="e.g. US"
+            maxLength={2}
+            onBlur={(e) => update('country', e.target.value.toUpperCase())}
+          />
+        </label>
+        <label>
+          Region
+          <input
+            aria-label="Login region"
+            key={`region-${params.get('region')}`}
+            defaultValue={params.get('region') || ''}
+            placeholder="All regions"
+            onBlur={(e) => update('region', e.target.value)}
+          />
+        </label>
+        <label>
+          Minimum logins
+          <input
+            aria-label="Minimum login events"
+            key={`minimum-${params.get('minEvents')}`}
+            type="number"
+            min={1}
+            max={1000000}
+            defaultValue={params.get('minEvents') || '1'}
+            onBlur={(e) => update('minEvents', e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="geo-accuracy-note">
+        <Globe2 size={16} />
+        <span>Approximate network locations · GPS is never collected</span>
+        <button className="icon-button" aria-label={explanation} title={explanation}>
+          <Info size={15} />
+        </button>
+      </div>
+      {result.error ? (
+        <div className="error-banner" role="alert">
+          <ShieldCheck size={20} />
+          <div>
+            <strong>Login Geography is unavailable.</strong>
+            <p>{result.error}</p>
+          </div>
+          <button className="button" onClick={retry}>
+            Try again
+          </button>
+        </div>
+      ) : !data ? (
+        <GeographyLoading />
+      ) : !data.enabled ? (
+        <Panel>
+          <Empty
+            title="Login Geography is disabled"
+            description="Geographic collection is disabled in the server configuration."
+          />
+        </Panel>
+      ) : (
+        <>
+          {result.loading && (
+            <p className="geo-footnote" role="status">
+              Updating login locations…
+            </p>
+          )}
+          {data.sample && (
+            <div className="info-banner geo-sample" role="note">
+              Development samples · these locations are synthetic and are isolated from production analytics.
+            </div>
+          )}
+          <div className="geo-summary summary-grid">
+            {[
+              ['Countries', number(data.summary.countries), 'In the selected period'],
+              [
+                'Geolocated Logins',
+                number(data.summary.geolocatedLogins),
+                `${number(data.summary.totalLogins)} total login events`,
+              ],
+              ['Geolocation Coverage', `${data.summary.coverage.toFixed(1)}%`, 'Login events with a usable location'],
+              [
+                'Most Active Location',
+                data.summary.mostActiveLocation || '—',
+                metric === 'users' ? 'By project-scoped unique users' : 'By total login events',
+              ],
+              ['New Countries', number(data.summary.newCountries.length), 'First seen in retained history'],
+              [
+                'Unknown Locations',
+                number(data.summary.unknownLocations),
+                'Includes unavailable and excluded locations',
+              ],
+            ].map(([label, value, detail]) => (
+              <div className="summary-card panel" key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+                <small>{detail}</small>
+              </div>
+            ))}
+          </div>
+          <Panel
+            title="Login locations"
+            subtitle={`${data.granularity}-level aggregation · ${number(data.summary.uniqueUsers)} project-scoped users · ${number(data.summary.cities || 0)} cities / ${number(data.summary.regions || 0)} regions`}
+            action={
+              <div className="geo-map-actions">
+                <div className="segmented">
+                  {(['clusters', 'heatmap'] as const).map((v) => (
+                    <button
+                      key={v}
+                      aria-pressed={mode === v}
+                      className={mode === v ? 'selected' : ''}
+                      onClick={() => update('mode', v)}
+                    >
+                      {v === 'clusters' ? 'Clustered locations' : 'Login density'}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="button small"
+                  aria-label="Toggle map theme"
+                  onClick={() => setMapTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+                >
+                  {mapTheme === 'dark' ? 'Light map' : 'Dark map'}
+                </button>
+                <button className="icon-button" aria-label="Reset map view" onClick={() => setReset((n) => n + 1)}>
+                  <LocateFixed size={17} />
+                </button>
+              </div>
+            }
+          >
+            {data.locations.length ? (
+              <GeographyMap
+                locations={data.locations}
+                metric={metric}
+                mode={mode}
+                theme={mapTheme}
+                styleUrl={mapTheme === 'dark' ? data.map.darkStyle : data.map.lightStyle}
+                selected={selected}
+                onSelect={setSelected}
+                reset={reset}
+                fitKey={stableFitKey.current}
+                onZoom={(zoom) => setAutomatic(zoom < 3 ? 'country' : zoom < 5 ? 'region' : 'city')}
+              />
+            ) : (
+              <Empty
+                title="No geolocated logins in this range"
+                description={
+                  data.summary.totalLogins
+                    ? 'Login events are present, but their network location is unavailable, excluded, pending, or below the selected threshold.'
+                    : 'Send a versioned login event from a connected application or choose another date range.'
+                }
+              />
+            )}
+            <div className="geo-legend">
+              <span>
+                <i className="city" />
+                City-level estimate
+              </span>
+              <span>
+                <i className="region" />
+                Region-level estimate
+              </span>
+              <span>
+                <i className="country" />
+                Country-level estimate
+              </span>
+              <span>
+                <i />
+                Unknown · never plotted
+              </span>
+            </div>
+            {data.truncated && (
+              <p className="geo-footnote">
+                The result is capped. Narrow the date range or select a project for more detail.
+              </p>
+            )}
+          </Panel>
+          {point && <LocationDetails point={point} />}
+          <Panel
+            title="Top Locations"
+            subtitle="Select a location to focus the map. Comparisons use the preceding period of equal duration."
+          >
+            {rows.length ? (
+              <div className="table-scroll">
+                <table className="data-table geo-table">
+                  <thead>
+                    <tr>
+                      {(
+                        [
+                          ['city', 'Location'],
+                          ['countryName', 'Country'],
+                          ['totalEvents', 'Login events'],
+                          ['uniqueUsers', 'Unique users'],
+                          ['percentage', 'Share'],
+                          ['firstSeen', 'First seen (UTC)'],
+                          ['lastSeen', 'Last seen (UTC)'],
+                          ['trend', 'Trend'],
+                        ] as [keyof GeographyPoint, string][]
+                      ).map(([key, label]) => (
+                        <th key={key} aria-sort={sort === key ? (ascending ? 'ascending' : 'descending') : 'none'}>
+                          <button onClick={() => sortBy(key)}>
+                            {label}
+                            {sort === key ? (ascending ? ' ↑' : ' ↓') : ''}
+                          </button>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="clickable"
+                        aria-selected={selected === p.id}
+                        tabIndex={0}
+                        onClick={() => setSelected(p.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelected(p.id);
+                          }
+                        }}
+                      >
+                        <td>
+                          <strong>{p.city || p.region || p.countryName}</strong>
+                          <small className="cell-sub">{p.accuracyLevel}-level estimate</small>
+                        </td>
+                        <td>{p.countryName}</td>
+                        <td>{number(p.totalEvents)}</td>
+                        <td>{number(p.uniqueUsers)}</td>
+                        <td>{p.percentage.toFixed(1)}%</td>
+                        <td>{date(p.firstSeen)}</td>
+                        <td>{date(p.lastSeen)}</td>
+                        <td>
+                          {(metric === 'users' ? p.previousUsers : p.previousEvents) === 0
+                            ? 'First activity'
+                            : `${p.trend > 0 ? '+' : ''}${p.trend.toFixed(1)}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <Empty title="No locations to compare" />
+            )}
+            <p className="geo-footnote">
+              Unique users are scoped to each project and can appear in more than one location. Unknown locations remain
+              in the share denominator.
+            </p>
+          </Panel>
+        </>
+      )}
+    </div>
+  );
+}
+function LocationDetails({ point: p }: { point: GeographyPoint }) {
+  return (
+    <Panel
+      title={[p.city, p.region, p.countryName].filter(Boolean).join(', ')}
+      subtitle={`${p.accuracyLevel}-level estimate${p.accuracyRadius ? ` · approximate radius ≥ ${p.accuracyRadius} km` : ''}`}
+      className="geo-details"
+    >
+      <dl>
+        {[
+          ['Login events', number(p.totalEvents)],
+          ['Unique users', number(p.uniqueUsers)],
+          ['Share of selection', `${p.percentage.toFixed(1)}%`],
+          ['First seen (UTC)', new Date(p.firstSeen).toISOString()],
+          ['Last seen (UTC)', new Date(p.lastSeen).toISOString()],
+          ['Applications', p.applications.join(', ')],
+          ['Authentication providers', p.providers.join(', ')],
+          ['VPN events', p.vpnEvents ?? 'Unavailable'],
+          ['Proxy events', p.proxyEvents ?? 'Unavailable'],
+          ['Hosting events', p.hostingEvents ?? 'Unavailable'],
+          ['Tor events', p.torEvents ?? 'Unavailable'],
+        ].map(([key, value]) => (
+          <div key={key}>
+            <dt>{key}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  );
+}

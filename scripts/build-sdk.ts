@@ -2,6 +2,7 @@ import { build } from 'esbuild';
 import fs from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 await fs.mkdir('apps/dashboard/public', { recursive: true });
+await build({ entryPoints: ['node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'], outfile: 'apps/dashboard/public/maplibre-worker.mjs', bundle: true, minify: true, format: 'esm', target: 'es2022' });
 await build({ entryPoints: ['packages/sdk-browser/src/script.ts'], outfile: 'apps/dashboard/public/house-edge.js', bundle: true, minify: true, sourcemap: true, format: 'iife', target: 'es2020' });
 await build({ entryPoints: ['packages/sdk-browser/src/index.ts'], outfile: 'packages/sdk-browser/dist/index.js', bundle: true, minify: true, format: 'esm', target: 'es2020' });
 await build({ entryPoints: ['packages/sdk-node/src/index.ts'], outfile: 'packages/sdk-node/dist/index.js', bundle: true, format: 'esm', platform: 'node', target: 'node20' });

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { GeographyFilters } from './geography';
 
 export const eventSchema = z.object({
   id: z.string().uuid(),
@@ -16,6 +17,13 @@ export const eventSchema = z.object({
   country: z.string().length(2).optional(),
   durationMs: z.number().finite().min(0).max(86_400_000).optional(),
   version: z.string().max(80).optional(),
+  login: z.object({
+    success: z.boolean(), provider: z.string().trim().min(1).max(80).default('unknown'),
+    environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
+    correlationId: z.string().max(128).optional(),
+    // Server ingestion only. Consumed by enrichment; never stored in event properties.
+    sourceIp: z.string().max(64).optional(),
+  }).optional(),
 });
 export const batchSchema = z.object({
   projectKey: z.string().min(1).max(80),
@@ -25,7 +33,7 @@ export const batchSchema = z.object({
 export type AnalyticsEvent = z.infer<typeof eventSchema>;
 export type EventBatch = z.infer<typeof batchSchema>;
 export type Properties = Record<string, z.infer<typeof z.json>>;
-export const DEFAULT_BLOCKED_PROPERTIES = ['password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token', 'authorization', 'cookie', 'email', 'phone', 'credit_card', 'ssn'];
+export const DEFAULT_BLOCKED_PROPERTIES = ['password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token', 'authorization', 'cookie', 'email', 'phone', 'credit_card', 'ssn', 'ip', 'ip_address', 'ip_hash', 'source_ip', 'client_ip', 'remote_address', 'x_forwarded_for', 'cf_connecting_ip'];
 
 export function sanitizeProperties(value: unknown, blocked: string[] = [], depth = 0): Properties {
   if (!value || typeof value !== 'object' || Array.isArray(value) || depth > 5) return {};
@@ -64,7 +72,7 @@ export interface EventRow {
   operating_system: string; country: string; duration_ms: number | null; app_version: string;
   project_name?: string; color?: string;
 }
-export interface Filters { project?: string; from: string; to: string; search?: string; event?: string; property?: string; value?: string; minDuration?: number; }
+export interface Filters extends GeographyFilters { project?: string; from: string; to: string; search?: string; event?: string; property?: string; value?: string; minDuration?: number; }
 export interface MetricSet { users: number; sessions: number; pageViews: number; events: number; conversions: number; errors: number; avgDuration: number; }
 export interface SeriesPoint { date: string; events: number; users: number; sessions: number; pageViews: number; errors: number; conversions: number; }
 export interface ProjectMetrics extends Project, MetricSet {

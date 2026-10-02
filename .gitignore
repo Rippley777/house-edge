@@ -15,3 +15,5 @@ playwright-report/
 .DS_Store
 apps/dashboard/public/house-edge.js
 apps/dashboard/public/house-edge.js.map
+
+apps/dashboard/public/maplibre-worker.mjs

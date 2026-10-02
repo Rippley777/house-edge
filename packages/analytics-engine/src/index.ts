@@ -110,13 +110,13 @@ export function eventFilter(db: Connection, filters: Filters) {
 }
 export async function getEvents(db: Connection, filters: Filters, limit = 100, offset = 0): Promise<EventRow[]> {
   const { clause, params } = eventFilter(db, filters);
-  const query = `SELECT e.*, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE ${clause} ORDER BY e.timestamp DESC, e.id DESC`;
+  const query = `SELECT e.id, e.project_id, e.event_name, e.timestamp, e.session_id, e.anonymous_id, e.user_id, e.path, e.referrer, e.properties_json, e.device_type, e.browser, e.operating_system, e.country, e.duration_ms, e.app_version, e.error_fingerprint, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE ${clause} ORDER BY e.timestamp DESC, e.id DESC`;
   if (offset > 0) return db.query(`${query} ${db.dialect === 'azure' ? `OFFSET ${Math.floor(offset)} ROWS FETCH NEXT ${limit} ROWS ONLY` : `LIMIT ${limit} OFFSET ${Math.floor(offset)}`}`, params);
   return db.query(limitQuery(db, query, limit), params);
 }
 export async function sessionDetail(project: string, session: string, at: string) {
   const db = await getDb();
-  return db.query<EventRow>('SELECT e.*, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE e.project_id = @project AND e.session_id = @session AND e.timestamp <= @at ORDER BY e.timestamp, e.id', { project, session, at });
+  return db.query<EventRow>('SELECT e.id, e.project_id, e.event_name, e.timestamp, e.session_id, e.anonymous_id, e.user_id, e.path, e.referrer, e.properties_json, e.device_type, e.browser, e.operating_system, e.country, e.duration_ms, e.app_version, e.error_fingerprint, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE e.project_id = @project AND e.session_id = @session AND e.timestamp <= @at ORDER BY e.timestamp, e.id', { project, session, at });
 }
 export async function features(db: Connection, f: Filters): Promise<Row[]> {
   const prev = previousFilters(f);
@@ -179,7 +179,7 @@ export async function viewData(view: string, f: Filters, options: { offset?: num
     return { rows, summary: { issues: rows.length, occurrences: rows.reduce((n, r) => n + Number(r.occurrences), 0), affectedSessions: rows.reduce((n, r) => n + Number(r.sessions_affected), 0) } };
   }
   if (view === 'performance') {
-    const perf = await db.query<EventRow>(limitQuery(db, `SELECT e.*, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE ${w.clause} AND e.duration_ms IS NOT NULL ORDER BY e.timestamp DESC`, 100000), w.params);
+    const perf = await db.query<EventRow>(limitQuery(db, `SELECT e.id, e.project_id, e.event_name, e.timestamp, e.session_id, e.anonymous_id, e.user_id, e.path, e.referrer, e.properties_json, e.device_type, e.browser, e.operating_system, e.country, e.duration_ms, e.app_version, e.error_fingerprint, p.name AS project_name, p.color FROM events e JOIN projects p ON p.id = e.project_id WHERE ${w.clause} AND e.duration_ms IS NOT NULL ORDER BY e.timestamp DESC`, 100000), w.params);
     const groups = new Map<string, EventRow[]>();
     for (const e of perf) { const metric = String(JSON.parse(e.properties_json).metric || e.event_name); const key = `${e.project_id}:${metric}:${e.path}:${e.app_version}:${e.browser}:${e.device_type}`; groups.set(key, [...(groups.get(key) || []), e]); }
     const rows = [...groups].map(([id, list]) => { const values = list.map(e => e.duration_ms!).sort((a, b) => a - b); const e = list[0]; return { id, project_name: e.project_name!, color: e.color!, metric: String(JSON.parse(e.properties_json).metric || e.event_name), path: e.path, version: e.app_version, browser: e.browser, device: e.device_type, samples: list.length, p50: percentile(values, .5), p75: percentile(values, .75), p95: percentile(values, .95), p99: percentile(values, .99) }; });

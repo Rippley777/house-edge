@@ -165,3 +165,7 @@ The SDK does not read form controls, keystrokes, authorization headers, browser 
 The browser client uses asynchronous fetch, a memory-only bounded queue, 8-second request timeouts, and exponential retry up to a 60-second delay. A permanent 4xx response drops the invalid batch; 429, server errors, and network outages retry. Retried events retain their UUIDs. Beacon delivery is best effort and cannot confirm ingestion.
 
 Analytics must not throw into or block the host application. This is intentionally not a financial transaction ledger: bounded queues and tab shutdown can lose events. Use a durable server-side transactional outbox if a future application needs guaranteed business-event delivery.
+
+## Server login events
+
+The Node SDK accepts optional `login` context for versioned authentication events. Source IP must come from verified server transport/proxy context and is accepted only with a server ingestion key. See [the complete contract and privacy behavior](login-geography.md).

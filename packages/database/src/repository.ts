@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { cleanUrl, sanitizeProperties, type AnalyticsEvent, type Project } from '@house-edge/shared';
 import { datePart, type Connection, type Params } from './connection';
+import { loginMetadata } from './geolocation';
 
 export const hashKey = (key: string) => createHash('sha256').update(key).digest('hex');
 export async function audit(tx: Connection, action: string, target: string, details: object = {}) {
@@ -62,6 +63,10 @@ export async function ingest(db: Connection, project: Project, events: Analytics
       };
       await tx.execute(`INSERT INTO events (id, project_id, event_name, timestamp, session_id, anonymous_id, user_id, path, referrer, properties_json, device_type, browser, operating_system, country, duration_ms, app_version, error_fingerprint)
         VALUES (@id, @project, @event, @timestamp, @session, @anonymous, @user, @path, @referrer, @properties, @device, @browser, @os, @country, @duration, @version, @fingerprint)`, values);
+      const login = loginMetadata(event, project);
+      if (login) await tx.execute('UPDATE events SET login_success = @success, login_environment = @environment, auth_provider = @provider, correlation_id = @correlation, location_accuracy_level = @accuracy WHERE id = @id', {
+        id: event.id, success: Number(login.success), environment: login.environment, provider: login.provider, correlation: login.correlationId, accuracy: 'unknown',
+      });
       const [session] = await tx.query<{ first_seen: string; last_seen: string; landing_page: string; exit_page: string }>('SELECT first_seen, last_seen, landing_page, exit_page FROM sessions WHERE project_id = @project AND session_id = @session', { project: project.id, session: event.sessionId });
       if (!session) {
         await tx.execute(`INSERT INTO sessions (project_id, session_id, anonymous_id, user_id, first_seen, last_seen, duration_ms, page_views, event_count, landing_page, exit_page, referrer, browser, device_type)

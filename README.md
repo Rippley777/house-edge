@@ -34,6 +34,7 @@ To start an empty, authenticated workspace, set `DEMO_MODE=false`, configure `AD
 - Validated, batched event collection with deduplication, shared database rate limits, and transactional session/user/rollup projections.
 - Browser SDK and script embed: page views, SPA navigation, sessions, identification, custom events, timings, errors, Web Vitals, privacy scrubbing, bounded queues, retries, and exit beacons.
 - Node SDK with explicit `flush()` for serverless functions.
+- Login Geography with aggregate MapLibre clusters/density, project/date filters, privacy-safe enrichment, retention, and resumable authorized backfill.
 - Overview and individual project analytics with date/project filters and previous-period comparisons.
 - Event Explorer with event, property equality, duration, route, visitor, and version filters; paginated events; CSV export.
 - Live Activity, session timelines, anonymous users, ordered funnels, retention cohorts, and named feature adoption.
@@ -70,6 +71,10 @@ The packages are built locally, not published to npm by this project. Install th
 | `npm run dev` | Build SDK assets and start the dashboard/collector |
 | `npm run build` | Build both SDKs and the production Next.js application |
 | `npm start` | Run the production build |
+| `npm run lint` | Lint TypeScript (existing unused declarations are reported as warnings) |
+| `npm run format -- <files>` | Format selected changed files with Prettier |
+| `npm run geo:enrich` | Drain a bounded login geography enrichment batch |
+| `npm run geo:backfill -- <source.ndjson> [checkpoint.json]` | Resume an authorized historical login/IP export |
 | `npm run typecheck` | Check the entire monorepo |
 | `npm test` | Backend, privacy, authentication, and analytics regression tests |
 | `npm run test:e2e` | Chromium integration tests using a separate SQLite database and port 4318 |
@@ -108,4 +113,4 @@ Azure credentials are server-only. Azure migrations and connection code are incl
 
 ## Deliberate limits
 
-This is a single-owner initial release. It does not include organizations/RBAC, SSO, session video recording, source-map symbolication, geolocation by IP, cross-device identity merging, or causal release attribution. Exact scope and query limits are documented in [architecture](docs/architecture.md). Sampled or capped views are labeled in the product. `country` is accepted when explicitly supplied; the SDK does not infer it from IP addresses.
+This is a single-owner initial release. It does not include organizations/RBAC, SSO, session video recording, source-map symbolication, cross-device identity merging, or causal release attribution. Exact scope and query limits are documented in [architecture](docs/architecture.md). Sampled or capped views are labeled in the product. Successful/failed versioned login events can be enriched with approximate network geography; see [Login Geography](docs/login-geography.md) for privacy, proxy trust, providers, and retention.

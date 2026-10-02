@@ -5,6 +5,7 @@ import { getOverview, sessionDetail, viewData } from '@house-edge/engine';
 import { readLimitedJson } from '@house-edge/collector';
 import { authorized, COOKIE, createSession, safeEqual, trustedMutation } from '@/lib/auth';
 import type { Filters } from '@house-edge/shared';
+import { geographyFilterSchema, loginGeography } from '@house-edge/engine/geography';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,16 @@ export async function GET(request: Request, context: { params: Promise<{ path: s
     const db = await getDb(); const url = new URL(request.url);
     if (resource === 'projects') return json(await db.query('SELECT * FROM projects ORDER BY name'));
     const f = filters(url);
+    if (resource === 'login-geography') {
+      const extra = geographyFilterSchema.safeParse(Object.fromEntries(url.searchParams));
+      if (!extra.success) return json({ error: 'Invalid geography filters', issues: extra.error.issues.map(i => ({ path: i.path, message: i.message })) }, 400);
+      if (url.searchParams.get('sample') === 'true') {
+        if (!isDemo() || process.env.NODE_ENV === 'production' || process.env.GEO_DEVELOPMENT_SAMPLES !== 'true') return json({ error: 'Development samples are unavailable' }, 403);
+        const { geographySamples } = await import('@house-edge/engine/geography-samples');
+        return json(geographySamples({ ...f, ...extra.data }));
+      }
+      return json(await loginGeography(db, { ...f, ...extra.data }));
+    }
     if (isDemo() && Date.parse(f.to) >= Date.now() - 60000 && (resource === 'overview' || url.searchParams.get('view') === 'live')) {
       const { tickDemo } = await import('@house-edge/database/seed');
       await tickDemo(db);
@@ -41,7 +52,8 @@ export async function GET(request: Request, context: { params: Promise<{ path: s
     if (resource === 'session') return json(await sessionDetail(url.searchParams.get('project') || '', url.searchParams.get('session') || '', f.to));
     if (resource === 'data' || resource === 'export') {
       const view = url.searchParams.get('view') || 'events';
-      const data = await viewData(view, f, { offset: Math.max(0, Math.min(1000000, Number(url.searchParams.get('offset')) || 0)), interval: z.enum(['daily', 'weekly', 'monthly']).catch('weekly').parse(url.searchParams.get('interval')) });
+      const geography = view === 'login-geography' ? await loginGeography(db, { ...f, ...geographyFilterSchema.parse(Object.fromEntries(url.searchParams)) }) : null;
+      const data: { rows: Record<string, unknown>[] } = geography ? { rows: geography.locations.map(l => ({ ...l, applications: l.applications.join('; '), providers: l.providers.join('; ') })) } : await viewData(view, f, { offset: Math.max(0, Math.min(1000000, Number(url.searchParams.get('offset')) || 0)), interval: z.enum(['daily', 'weekly', 'monthly']).catch('weekly').parse(url.searchParams.get('interval')) });
       if (resource === 'data') return json(data);
       const columns = data.rows.length ? Object.keys(data.rows[0]) : [];
       const cell = (v: unknown) => { const str = String(v ?? ''); return `"${(/^[=+\-@\t\r]/.test(str) ? "'" : '') + str.replaceAll('"', '""')}"`; };
@@ -108,7 +120,7 @@ export async function POST(request: Request, context: { params: Promise<{ path: 
       return json({ id: funnelId }, 201);
     }
     if (resource === 'saved') {
-      const data = z.object({ name: z.string().min(1).max(120), viewType: z.enum(['overview', 'events', 'sessions', 'users', 'errors', 'performance', 'features', 'retention', 'releases', 'projects', 'live']), filters: z.record(z.string(), z.union([z.string(), z.number()])) }).parse(body);
+      const data = z.object({ name: z.string().min(1).max(120), viewType: z.enum(['overview', 'events', 'sessions', 'users', 'errors', 'performance', 'features', 'retention', 'releases', 'projects', 'live', 'login-geography']), filters: z.record(z.string(), z.union([z.string(), z.number()])) }).parse(body);
       const viewId = randomUUID();
       await db.transaction(async tx => { await tx.execute('INSERT INTO saved_views (id, name, view_type, filters_json, created_at) VALUES (@id, @name, @view, @filters, @now)', { id: viewId, name: data.name, view: data.viewType, filters: JSON.stringify(data.filters), now: new Date().toISOString() }); await audit(tx, 'view.saved', viewId); });
       return json({ id: viewId }, 201);

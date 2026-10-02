@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { audit, type Connection } from '@house-edge/database';
 import { metrics, percentile, jsonValue } from './index';
+import { processGeographyJobs } from '@house-edge/database/geolocation';
 
 export interface NotificationProvider { send(incident: { id: string; name: string; message: string; value: number }): Promise<void>; }
 export class WebhookProvider implements NotificationProvider {
@@ -71,5 +72,5 @@ export async function maintain(db: Connection) {
     return count;
   });
   const provider = process.env.ALERT_WEBHOOK_URL ? new WebhookProvider(process.env.ALERT_WEBHOOK_URL) : undefined;
-  return { deleted, retentionDays: days, ...await evaluateAlerts(db, provider, now) };
+  return { deleted, retentionDays: days, geography: await processGeographyJobs(db, 100), ...await evaluateAlerts(db, provider, now) };
 }

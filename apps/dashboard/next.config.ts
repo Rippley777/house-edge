@@ -8,7 +8,7 @@ const config: NextConfig = {
   allowedDevOrigins: ['127.0.0.1'],
   output: 'standalone',
   outputFileTracingRoot: path.resolve(process.cwd(), '../..'),
-  serverExternalPackages: ['better-sqlite3', 'mssql'],
+  serverExternalPackages: ['better-sqlite3', 'mssql', 'maxmind'],
   turbopack: { root: path.resolve(process.cwd(), '../..') },
   async headers() {
     return [{ source: '/:path*', headers: [

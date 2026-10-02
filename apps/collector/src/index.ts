@@ -1,6 +1,8 @@
 import { batchSchema } from '@house-edge/shared';
 import { consumeRateLimit, getDb, hashKey, ingest } from '@house-edge/database';
 import type { Project } from '@house-edge/shared';
+import { requestNetwork } from '@house-edge/database/client-ip';
+import { loginMetadata, stageGeography } from '@house-edge/database/geolocation';
 
 export const MAX_BODY_BYTES = 65536;
 export async function readLimitedJson(request: Request, limit = MAX_BODY_BYTES) {
@@ -27,7 +29,7 @@ export async function collectorOptions(request: Request) {
   if (!projects.some(p => (JSON.parse(p.allowed_origins) as string[]).includes(origin))) return new Response(null, { status: 403 });
   return new Response(null, { status: 204, headers: cors(origin) });
 }
-export async function collect(request: Request) {
+export async function collect(request: Request, transport: { remoteAddress?: string } = {}) {
   let payload: unknown;
   try { payload = await readLimitedJson(request); }
   catch (error) { return Response.json({ error: (error as Error).message.includes('size limit') ? 'Payload too large' : 'Invalid JSON payload' }, { status: (error as Error).message.includes('size limit') ? 413 : 400 }); }
@@ -41,9 +43,13 @@ export async function collect(request: Request) {
   const origins: string[] = JSON.parse(project.allowed_origins);
   if ((project.scope === 'ingest' && (!origin || !origins.includes(origin))) || (project.scope === 'server' && origin)) return Response.json({ error: 'Origin is not allowed for this key' }, { status: 403 });
   const headers = origin ? cors(origin) : { 'Cache-Control': 'no-store' };
+  if (events.some(e => e.login && (!loginMetadata(e, project) || (e.login.sourceIp && project.scope !== 'server')))) return Response.json({ error: 'Login metadata requires a matching versioned login event; sourceIp requires a server key' }, { status: 400, headers });
   const now = Date.now();
   if (events.some(e => Date.parse(e.timestamp) > now + 5 * 60000 || Date.parse(e.timestamp) < now - 7 * 86400000)) return Response.json({ error: 'Event timestamps must be within the past 7 days and no more than 5 minutes in the future' }, { status: 400, headers });
   if (!await consumeRateLimit(db, `ingest:${project.id}`, events.length, Number(process.env.INGESTION_EVENTS_PER_MINUTE) || 6000)) return Response.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { ...headers, 'Retry-After': '60' } });
   const result = await ingest(db, project, events);
+  // Optional analytics must never reject an already accepted login batch.
+  try { await stageGeography(db, project, events, requestNetwork(request, transport.remoteAddress), project.scope === 'server'); }
+  catch { console.warn('Login geography staging unavailable'); }
   return Response.json(result, { status: 202, headers });
 }

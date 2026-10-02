@@ -110,3 +110,7 @@ curl --fail-with-body -X POST "$HOUSE_EDGE_URL/api/deployments" \
 ```
 
 The request records the current server time. Dashboard comparisons use that marker, not untrusted client claims about the deployment date.
+
+## Login Geography
+
+See [Login Geography](login-geography.md) for the additive versioned login ingestion contract and authenticated `/api/login-geography` aggregate API, filters, privacy and deployment requirements.

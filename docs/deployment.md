@@ -136,3 +136,7 @@ The CLI needs database credentials; the HTTP endpoint needs only the admin key. 
 - SQL credentials, identity tokens, and administrative secrets never belong in NEXT_PUBLIC variables.
 
 The local test suite verifies the shared repository and queries against SQLite, plus authentication, collection, privacy, SDK behavior, and Chromium workflows. Live Azure SQL connectivity, SQL Server query execution, managed identity, Docker image runtime, and actual Azure deployment must be verified in your environment; they cannot be proven by SQLite tests alone.
+
+## Login Geography
+
+Apply migration 002 before deploying the new collector. Configure dedicated `GEO_QUEUE_KEY` and `GEO_IP_HASH_SALT` secrets for optional IP enrichment, mount a local MMDB or use an HTTPS adapter, and schedule maintenance to enforce the one-hour temporary-input lifetime and geographic retention. Forwarded headers stay untrusted until ingress is explicitly configured. See [Login Geography operations](login-geography.md).

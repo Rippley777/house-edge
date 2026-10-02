@@ -4,6 +4,7 @@ import { config as loadEnv } from 'dotenv';
 import type Sqlite from 'better-sqlite3';
 import type * as MSSQL from 'mssql';
 import { schemaStatements } from './schema';
+import { geographySchemaStatements } from './geography-schema';
 
 export type Params = Record<string, string | number | null>;
 export interface Connection {
@@ -101,5 +102,9 @@ export async function migrate(db: Connection) {
     for (const statement of schemaStatements(db.dialect)) await tx.execute(statement);
     const applied = await tx.query('SELECT version FROM schema_migrations WHERE version = 1');
     if (!applied.length) await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (1, @now)', { now: new Date().toISOString() });
+    if (!(await tx.query('SELECT version FROM schema_migrations WHERE version = 2')).length) {
+      for (const statement of geographySchemaStatements(db.dialect)) await tx.execute(statement);
+      await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (2, @now)', { now: new Date().toISOString() });
+    }
   });
 }

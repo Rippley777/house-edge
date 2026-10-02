@@ -13,7 +13,7 @@ interface QueuedEvent {
   deviceType: 'mobile' | 'tablet' | 'desktop'; browser: string; operatingSystem: string;
   durationMs?: number; version?: string;
 }
-const blockedDefaults = ['password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token', 'authorization', 'cookie', 'email', 'phone', 'credit_card', 'ssn'];
+const blockedDefaults = ['password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token', 'authorization', 'cookie', 'email', 'phone', 'credit_card', 'ssn', 'ip', 'ip_address', 'source_ip', 'client_ip', 'remote_address', 'x_forwarded_for', 'cf_connecting_ip', 'ip_hash'];
 export function redact(value: unknown, blocked: string[] = [], depth = 0): unknown {
   if (depth > 5) return null;
   if (Array.isArray(value)) return value.slice(0, 50).map(v => redact(v, blocked, depth + 1));

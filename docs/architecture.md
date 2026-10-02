@@ -86,3 +86,7 @@ Rules support error-rate thresholds, P95 timing thresholds, collector silence, t
 This is a single-owner administrative workspace. Production reads require an admin bearer key or an expiring HMAC-signed HttpOnly session cookie. Session cookies use SameSite=Strict and Secure when PUBLIC_URL is HTTPS. Cookie-authenticated mutations also require the exact configured Origin. Login is limited to ten attempts per minute across the deployment. Missing/short production secrets fail closed. Rotate ADMIN_KEY and SESSION_SECRET together to invalidate both API credentials and existing login sessions.
 
 Origin restrictions help prevent accidental browser misuse; a public browser key is not a secret, and Origin headers can be fabricated by non-browser clients. Never use browser analytics events as proof of a financial/security action. If stronger data provenance becomes necessary, ingest important events with server keys and trusted server code.
+
+## Login Geography
+
+[Login Geography](login-geography.md) extends existing events with nullable login/geographic metadata. Short-lived encrypted work inputs are enriched after the collector response through provider adapters; the database-backed worker also runs during maintenance. SQL aggregates, project-scoped unique counts, bounded map points, and explicit event-field projections preserve the existing single-owner authorization and privacy boundaries.

@@ -1,0 +1,8 @@
+node_modules
+**/.next*
+**/dist
+.data
+package-lock.json
+apps/dashboard/public
+AGENTS.md
+docs/ECOSYSTEM.md
