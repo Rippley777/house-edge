@@ -20,8 +20,9 @@ test('overview filters, project drilldown, event inspector, and session journey 
   await expect(page.getByRole('heading', { name: 'Repo Reaper', exact: true })).toBeVisible();
   await expect(page.locator('.project-table tbody tr')).toHaveCount(1);
   await page.getByRole('link', { name: 'Events', exact: true }).click();
-  await expect(page.locator('.data-table tbody tr').first()).toBeVisible();
-  await page.locator('.data-table tbody tr').first().click();
+  await expect(page).toHaveURL(/\/events\?/);
+  await expect(page.getByPlaceholder('Search events, routes, users, or versions…')).toBeVisible();
+  await page.locator('.view-content .data-table tbody tr.clickable').first().click();
   await expect(page.getByRole('dialog', { name: 'Event details' })).toBeVisible();
   await expect(page.getByText('event properties · JSON')).toBeVisible();
   await page.getByRole('button', { name: 'Explore session' }).click();
