@@ -13,19 +13,32 @@ const GeographyMap = dynamic(() => import('./login-geography-map'), {
 });
 const explanation =
   'Locations are estimated from network information and may represent a city, region, VPN endpoint, mobile carrier gateway, or corporate network rather than the user’s exact physical location.';
-export function GeographyLoading() {
+export function GeographyLoading({ legacy = false }: { legacy?: boolean }) {
   return (
-    <div className="geo-skeleton" role="status" aria-label="Loading Login Geography">
+    <div
+      className="geo-skeleton"
+      role="status"
+      aria-label={legacy ? 'Loading Login Geography' : 'Loading Event Geography'}
+    >
       <div />
       <div />
       <div />
-      <span>Loading login locations…</span>
+      <span>{legacy ? 'Loading login locations…' : 'Loading event locations…'}</span>
     </div>
   );
 }
-export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps) {
+export function LoginGeography({ view, query, refresh, setGeographyDetail }: ViewProps) {
   const router = useRouter(),
     params = useSearchParams();
+  const legacy = view === 'login-geography';
+  const title = legacy ? 'Login Geography' : 'Event Geography';
+  const eventLabel = legacy ? 'Login events' : 'Events';
+  const resultFilter =
+    params.get('success') === 'success' || params.get('success') === 'failure'
+      ? params.get('success')!
+      : params.get('scope') === 'logins'
+        ? 'logins'
+        : 'all';
   const [automatic, setAutomatic] = useState('country');
   const [selected, setSelected] = useState<string | null>(null),
     [reset, setReset] = useState(0);
@@ -36,19 +49,33 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
   const metric = params.get('metric') === 'users' ? 'users' : 'events';
   const granularity = params.get('granularity') || 'auto';
   const q = new URLSearchParams(query);
-  for (const key of ['environment', 'provider', 'country', 'region', 'success', 'metric', 'minEvents', 'sample']) {
+  for (const key of [
+    'event',
+    'scope',
+    'environment',
+    'provider',
+    'country',
+    'region',
+    'success',
+    'metric',
+    'minEvents',
+    'sample',
+  ]) {
     const value = params.get(key);
     if (value) q.set(key, value);
   }
   q.set('granularity', granularity === 'auto' ? automatic : granularity);
-  const result = useFetch<GeographyData>(`/api/login-geography?${q}`, Number(params.get('geoRevision') || 0));
-  const update = (key: string, value: string) => {
+  const result = useFetch<GeographyData>(`/api/${view}?${q}`, Number(params.get('geoRevision') || 0));
+  const updateMany = (values: Record<string, string>) => {
     const p = new URLSearchParams(params);
-    if (value) p.set(key, value);
-    else p.delete(key);
-    router.push(`/login-geography?${p}`);
+    for (const [key, value] of Object.entries(values)) {
+      if (value) p.set(key, value);
+      else p.delete(key);
+    }
+    router.push(`/${view}?${p}`);
     setSelected(null);
   };
+  const update = (key: string, value: string) => updateMany({ [key]: value });
   const data = result.data;
   useEffect(() => {
     if (data) setGeographyDetail(data.granularity);
@@ -70,6 +97,8 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
     q.get('to'),
     q.get('project'),
     q.get('environment'),
+    q.get('scope'),
+    q.get('event'),
     q.get('success'),
     q.get('provider'),
     q.get('country'),
@@ -91,10 +120,26 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
   return (
     <div className="geography-view" aria-busy={result.loading}>
       <div className="geo-controls">
+        {!legacy && (
+          <label>
+            Event name
+            <input
+              aria-label="Event name"
+              key={`event-${params.get('event')}`}
+              defaultValue={params.get('event') || ''}
+              placeholder="All event names"
+              maxLength={120}
+              onBlur={(e) => update('event', e.target.value.trim())}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
+            />
+          </label>
+        )}
         <label>
           Environment
           <select
-            aria-label="Login environment"
+            aria-label={legacy ? 'Login environment' : 'Event environment'}
             value={params.get('environment') || ''}
             onChange={(e) => update('environment', e.target.value)}
           >
@@ -105,21 +150,33 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
           </select>
         </label>
         <label>
-          Login result
+          {legacy ? 'Login result' : 'Event scope'}
           <select
-            aria-label="Login result"
-            value={params.get('success') || 'success'}
-            onChange={(e) => update('success', e.target.value)}
+            aria-label={legacy ? 'Login result' : 'Event scope'}
+            value={legacy ? params.get('success') || 'success' : resultFilter}
+            onChange={(e) =>
+              legacy
+                ? update('success', e.target.value)
+                : updateMany({
+                    scope: e.target.value === 'all' ? 'events' : 'logins',
+                    success: ['success', 'failure'].includes(e.target.value) ? e.target.value : 'all',
+                  })
+            }
           >
             <option value="success">Successful logins</option>
             <option value="failure">Failed logins</option>
-            <option value="all">All login events</option>
+            <option value="all">{legacy ? 'All login events' : 'All events'}</option>
+            {!legacy && <option value="logins">All login events</option>}
           </select>
         </label>
         <label>
           Measure
-          <select aria-label="Login measure" value={metric} onChange={(e) => update('metric', e.target.value)}>
-            <option value="events">Total login events</option>
+          <select
+            aria-label={legacy ? 'Login measure' : 'Event measure'}
+            value={metric}
+            onChange={(e) => update('metric', e.target.value)}
+          >
+            <option value="events">{legacy ? 'Total login events' : 'Total events'}</option>
             <option value="users">Unique users</option>
           </select>
         </label>
@@ -152,7 +209,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
         <label>
           Country
           <input
-            aria-label="Login country"
+            aria-label={legacy ? 'Login country' : 'Event country'}
             key={`country-${params.get('country')}`}
             defaultValue={params.get('country') || ''}
             placeholder="e.g. US"
@@ -163,7 +220,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
         <label>
           Region
           <input
-            aria-label="Login region"
+            aria-label={legacy ? 'Login region' : 'Event region'}
             key={`region-${params.get('region')}`}
             defaultValue={params.get('region') || ''}
             placeholder="All regions"
@@ -171,9 +228,9 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
           />
         </label>
         <label>
-          Minimum logins
+          {legacy ? 'Minimum logins' : 'Minimum events'}
           <input
-            aria-label="Minimum login events"
+            aria-label={legacy ? 'Minimum login events' : 'Minimum events'}
             key={`minimum-${params.get('minEvents')}`}
             type="number"
             min={1}
@@ -194,7 +251,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
         <div className="error-banner" role="alert">
           <ShieldCheck size={20} />
           <div>
-            <strong>Login Geography is unavailable.</strong>
+            <strong>{title} is unavailable.</strong>
             <p>{result.error}</p>
           </div>
           <button className="button" onClick={retry}>
@@ -202,11 +259,11 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
           </button>
         </div>
       ) : !data ? (
-        <GeographyLoading />
+        <GeographyLoading legacy={legacy} />
       ) : !data.enabled ? (
         <Panel>
           <Empty
-            title="Login Geography is disabled"
+            title={`${title} is disabled`}
             description="Geographic collection is disabled in the server configuration."
           />
         </Panel>
@@ -214,7 +271,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
         <>
           {result.loading && (
             <p className="geo-footnote" role="status">
-              Updating login locations…
+              {legacy ? 'Updating login locations…' : 'Updating event locations…'}
             </p>
           )}
           {data.sample && (
@@ -226,15 +283,15 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
             {[
               ['Countries', number(data.summary.countries), 'In the selected period'],
               [
-                'Geolocated Logins',
-                number(data.summary.geolocatedLogins),
-                `${number(data.summary.totalLogins)} total login events`,
+                legacy ? 'Geolocated Logins' : 'Geolocated Events',
+                number(legacy ? data.summary.geolocatedLogins : data.summary.geolocatedEvents),
+                `${number(legacy ? data.summary.totalLogins : data.summary.totalEvents)} total ${legacy ? 'login ' : ''}events`,
               ],
-              ['Geolocation Coverage', `${data.summary.coverage.toFixed(1)}%`, 'Login events with a usable location'],
+              ['Geolocation Coverage', `${data.summary.coverage.toFixed(1)}%`, 'Events with a usable location'],
               [
                 'Most Active Location',
                 data.summary.mostActiveLocation || '—',
-                metric === 'users' ? 'By project-scoped unique users' : 'By total login events',
+                metric === 'users' ? 'By project-scoped unique users' : 'By total events',
               ],
               ['New Countries', number(data.summary.newCountries.length), 'First seen in retained history'],
               [
@@ -251,7 +308,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
             ))}
           </div>
           <Panel
-            title="Login locations"
+            title={legacy ? 'Login locations' : 'Event locations'}
             subtitle={`${data.granularity}-level aggregation · ${number(data.summary.uniqueUsers)} project-scoped users · ${number(data.summary.cities || 0)} cities / ${number(data.summary.regions || 0)} regions`}
             action={
               <div className="geo-map-actions">
@@ -263,7 +320,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
                       className={mode === v ? 'selected' : ''}
                       onClick={() => update('mode', v)}
                     >
-                      {v === 'clusters' ? 'Clustered locations' : 'Login density'}
+                      {v === 'clusters' ? 'Clustered locations' : legacy ? 'Login density' : 'Event density'}
                     </button>
                   ))}
                 </div>
@@ -295,11 +352,11 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
               />
             ) : (
               <Empty
-                title="No geolocated logins in this range"
+                title={legacy ? 'No geolocated logins in this range' : 'No geolocated events in this range'}
                 description={
-                  data.summary.totalLogins
-                    ? 'Login events are present, but their network location is unavailable, excluded, pending, or below the selected threshold.'
-                    : 'Send a versioned login event from a connected application or choose another date range.'
+                  data.summary.totalEvents
+                    ? 'Events are present, but their network location is unavailable, excluded, pending, or below the selected threshold.'
+                    : 'Send events from a connected application or choose another date range.'
                 }
               />
             )}
@@ -327,7 +384,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
               </p>
             )}
           </Panel>
-          {point && <LocationDetails point={point} />}
+          {point && <LocationDetails point={point} eventLabel={eventLabel} />}
           <Panel
             title="Top Locations"
             subtitle="Select a location to focus the map. Comparisons use the preceding period of equal duration."
@@ -341,7 +398,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
                         [
                           ['city', 'Location'],
                           ['countryName', 'Country'],
-                          ['totalEvents', 'Login events'],
+                          ['totalEvents', eventLabel],
                           ['uniqueUsers', 'Unique users'],
                           ['percentage', 'Share'],
                           ['firstSeen', 'First seen (UTC)'],
@@ -406,7 +463,7 @@ export function LoginGeography({ query, refresh, setGeographyDetail }: ViewProps
     </div>
   );
 }
-function LocationDetails({ point: p }: { point: GeographyPoint }) {
+function LocationDetails({ point: p, eventLabel }: { point: GeographyPoint; eventLabel: string }) {
   return (
     <Panel
       title={[p.city, p.region, p.countryName].filter(Boolean).join(', ')}
@@ -415,7 +472,7 @@ function LocationDetails({ point: p }: { point: GeographyPoint }) {
     >
       <dl>
         {[
-          ['Login events', number(p.totalEvents)],
+          [eventLabel, number(p.totalEvents)],
           ['Unique users', number(p.uniqueUsers)],
           ['Share of selection', `${p.percentage.toFixed(1)}%`],
           ['First seen (UTC)', new Date(p.firstSeen).toISOString()],

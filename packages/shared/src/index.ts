@@ -17,6 +17,9 @@ export const eventSchema = z.object({
   country: z.string().length(2).optional(),
   durationMs: z.number().finite().min(0).max(86_400_000).optional(),
   version: z.string().max(80).optional(),
+  // All event types can carry server-verified network context. Never persisted as raw IP.
+  sourceIp: z.string().max(64).optional(),
+  environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
   login: z.object({
     success: z.boolean(), provider: z.string().trim().min(1).max(80).default('unknown'),
     environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
@@ -71,6 +74,9 @@ export interface EventRow {
   referrer: string; properties_json: string; device_type: string; browser: string;
   operating_system: string; country: string; duration_ms: number | null; app_version: string;
   project_name?: string; color?: string;
+  event_environment?: string | null; country_code?: string | null; country_name?: string | null;
+  region?: string | null; city?: string | null; timezone?: string | null;
+  location_accuracy_level?: string | null; geo_enrichment_status?: string | null;
 }
 export interface Filters extends GeographyFilters { project?: string; from: string; to: string; search?: string; event?: string; property?: string; value?: string; minDuration?: number; }
 export interface MetricSet { users: number; sessions: number; pageViews: number; events: number; conversions: number; errors: number; avgDuration: number; }

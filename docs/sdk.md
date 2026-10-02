@@ -169,3 +169,16 @@ Analytics must not throw into or block the host application. This is intentional
 ## Server login events
 
 The Node SDK accepts optional `login` context for versioned authentication events. Source IP must come from verified server transport/proxy context and is accepted only with a server ingestion key. See [the complete contract and privacy behavior](login-geography.md).
+
+## Geography on every event
+
+Browser auto-tracking and custom events are eligible automatically when collector ingress and providers are configured. Optional `environment` in browser `init` applies to all its events; otherwise House Edge uses the project environment.
+
+The Node SDK accepts top-level `sourceIp` and `environment` in each event context, including `track`, `timing`, and `error`. Use only a verified originating client IP and a server ingestion key. Without an explicit client source, server transport is never attributed to users.
+
+```ts
+analytics.track('checkout_completed', { amount: 42 }, { sessionId, anonymousId, sourceIp: trustedClientIp, environment: 'production' });
+await analytics.flush();
+```
+
+See [Event Geography](geography.md) for migration 003, proxy trust, providers, and privacy. Legacy login context is unchanged.

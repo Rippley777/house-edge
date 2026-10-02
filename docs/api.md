@@ -114,3 +114,9 @@ The request records the current server time. Dashboard comparisons use that mark
 ## Login Geography
 
 See [Login Geography](login-geography.md) for the additive versioned login ingestion contract and authenticated `/api/login-geography` aggregate API, filters, privacy and deployment requirements.
+
+## Event Geography
+
+`GET /api/geography` reports all event types by default. `event` matches an exact event name; `scope=logins` limits to canonical login events and `success=success|failure` selects their outcome. Date, project, environment, country/region, measure, threshold, and granularity filters apply to aggregates, summaries, previous-period trends, CSV export (`view=geography`), and saved views. Summary fields include `totalEvents` and `geolocatedEvents`. Read access requires administrator authentication.
+
+All ingestion events accept optional `environment` and server-key-only `sourceIp` outside properties. Browser geography uses trusted transport/ingress; browser IP claims are rejected. Raw IPs never appear in analytics responses. See [Event Geography](geography.md). The legacy login API and contract remain supported.

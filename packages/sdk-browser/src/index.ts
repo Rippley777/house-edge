@@ -1,6 +1,6 @@
 /** Non-blocking, privacy-conscious browser analytics. No runtime dependencies. */
 export interface HouseEdgeOptions {
-  projectKey: string; key: string; endpoint?: string; version?: string;
+  projectKey: string; key: string; endpoint?: string; version?: string; environment?: 'production' | 'staging' | 'development' | 'test';
   blockedProperties?: string[]; autoTrack?: boolean; respectDoNotTrack?: boolean;
   enabled?: boolean; flushIntervalMs?: number;
   /** Return a canonical path for hash routers or named views. Queries/fragments are stripped. */
@@ -11,7 +11,7 @@ interface QueuedEvent {
   id: string; event: string; sessionId: string; anonymousId: string; userId?: string;
   timestamp: string; properties: EventProperties; path: string; referrer: string;
   deviceType: 'mobile' | 'tablet' | 'desktop'; browser: string; operatingSystem: string;
-  durationMs?: number; version?: string;
+  durationMs?: number; version?: string; environment?: 'production' | 'staging' | 'development' | 'test';
 }
 const blockedDefaults = ['password', 'passwd', 'secret', 'token', 'access_token', 'refresh_token', 'authorization', 'cookie', 'email', 'phone', 'credit_card', 'ssn', 'ip', 'ip_address', 'source_ip', 'client_ip', 'remote_address', 'x_forwarded_for', 'cf_connecting_ip', 'ip_hash'];
 export function redact(value: unknown, blocked: string[] = [], depth = 0): unknown {
@@ -58,7 +58,7 @@ export function createHouseEdge() {
         deviceType: /iPad|Tablet/i.test(ua) ? 'tablet' : /Mobi|Android/i.test(ua) ? 'mobile' : 'desktop',
         browser: /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Other',
         operatingSystem: /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : 'Other',
-        version: config.version, ...((durationMs ?? properties.durationMs) !== undefined && typeof (durationMs ?? properties.durationMs) === 'number' && Number.isFinite(durationMs ?? properties.durationMs) && Number(durationMs ?? properties.durationMs) >= 0 ? { durationMs: Math.min(Number(durationMs ?? properties.durationMs), 86400000) } : {}),
+        version: config.version, environment: config.environment, ...((durationMs ?? properties.durationMs) !== undefined && typeof (durationMs ?? properties.durationMs) === 'number' && Number.isFinite(durationMs ?? properties.durationMs) && Number(durationMs ?? properties.durationMs) >= 0 ? { durationMs: Math.min(Number(durationMs ?? properties.durationMs), 86400000) } : {}),
       };
       if (new TextEncoder().encode(JSON.stringify(entry)).length > 16000) return;
       queue.push(entry); if (queue.length > 200) queue.shift();

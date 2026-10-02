@@ -33,7 +33,7 @@ export function ActionForm({ action, onClose, projects, project, view, filters, 
           : action === 'feature' ? { name: values.name, projectId: values.projectId, event: values.event }
           : action === 'alert' ? { name: values.name, projectId: values.projectId || null, metric: values.metric, operator: values.operator, threshold: Number(values.threshold), enabled: true }
           : action === 'release' ? { projectId: values.projectId, version: values.version, commitSha: values.commitSha, environment: values.environment }
-          : { name: values.name, viewType: ['overview', 'events', 'sessions', 'users', 'errors', 'performance', 'features', 'retention', 'releases', 'projects', 'live', 'login-geography'].includes(view) ? view : 'overview', filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) };
+          : { name: values.name, viewType: ['overview', 'events', 'sessions', 'users', 'errors', 'performance', 'features', 'retention', 'releases', 'projects', 'live', 'login-geography', 'geography'].includes(view) ? view : 'overview', filters: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== undefined)) };
         await mutate(resource, payload); onSuccess(`${action === 'save' ? 'View saved' : action === 'release' ? 'Release recorded' : action === 'feature' ? 'Feature tracked' : action === 'funnel' ? 'Funnel created' : 'Alert created'} successfully.`); onClose();
       }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }

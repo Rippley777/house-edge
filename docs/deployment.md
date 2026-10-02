@@ -149,4 +149,4 @@ The local test suite verifies the shared repository and queries against SQLite, 
 
 ## Login Geography
 
-Apply migration 002 before deploying the new collector. Configure dedicated `GEO_QUEUE_KEY` and `GEO_IP_HASH_SALT` secrets for optional IP enrichment, mount a local MMDB or use an HTTPS adapter, and schedule maintenance to enforce the one-hour temporary-input lifetime and geographic retention. Forwarded headers stay untrusted until ingress is explicitly configured. See [Login Geography operations](login-geography.md).
+Apply migrations 002 and 003 before deploying the new collector. Configure dedicated `GEO_QUEUE_KEY` and `GEO_IP_HASH_SALT` secrets for optional IP enrichment, mount a local MMDB or use an HTTPS adapter, and schedule maintenance to enforce the one-hour temporary-input lifetime and geographic retention. Forwarded headers stay untrusted until ingress is explicitly configured. See [Event Geography operations](geography.md).

@@ -43,13 +43,15 @@ export async function collect(request: Request, transport: { remoteAddress?: str
   const origins: string[] = JSON.parse(project.allowed_origins);
   if ((project.scope === 'ingest' && (!origin || !origins.includes(origin))) || (project.scope === 'server' && origin)) return Response.json({ error: 'Origin is not allowed for this key' }, { status: 403 });
   const headers = origin ? cors(origin) : { 'Cache-Control': 'no-store' };
+  if (events.some(e => e.sourceIp && project.scope !== 'server')) return Response.json({ error: 'sourceIp requires a server ingestion key' }, { status: 400, headers });
+  if (events.some(e => e.sourceIp && e.login?.sourceIp && e.sourceIp !== e.login.sourceIp)) return Response.json({ error: 'Conflicting source IP fields' }, { status: 400, headers });
   if (events.some(e => e.login && (!loginMetadata(e, project) || (e.login.sourceIp && project.scope !== 'server')))) return Response.json({ error: 'Login metadata requires a matching versioned login event; sourceIp requires a server key' }, { status: 400, headers });
   const now = Date.now();
   if (events.some(e => Date.parse(e.timestamp) > now + 5 * 60000 || Date.parse(e.timestamp) < now - 7 * 86400000)) return Response.json({ error: 'Event timestamps must be within the past 7 days and no more than 5 minutes in the future' }, { status: 400, headers });
   if (!await consumeRateLimit(db, `ingest:${project.id}`, events.length, Number(process.env.INGESTION_EVENTS_PER_MINUTE) || 6000)) return Response.json({ error: 'Rate limit exceeded' }, { status: 429, headers: { ...headers, 'Retry-After': '60' } });
   const result = await ingest(db, project, events);
-  // Optional analytics must never reject an already accepted login batch.
+  // Optional analytics must never reject an already accepted event batch.
   try { await stageGeography(db, project, events, requestNetwork(request, transport.remoteAddress), project.scope === 'server'); }
-  catch { console.warn('Login geography staging unavailable'); }
+  catch { console.warn('Event geography staging unavailable'); }
   return Response.json(result, { status: 202, headers });
 }

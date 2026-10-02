@@ -8,7 +8,9 @@ import { countryLocation, geographyEnabled } from '@house-edge/database/geolocat
 export const geographyFilterSchema = z.object({
   environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
   provider: z.string().max(80).optional(),
-  success: z.enum(['success', 'failure', 'all']).default('success'),
+  scope: z.enum(['events', 'logins']).default('events'),
+  event: z.string().trim().min(1).max(120).optional(),
+  success: z.enum(['success', 'failure', 'all']).default('all'),
   metric: z.enum(['events', 'users']).default('events'),
   country: z
     .string()
@@ -20,10 +22,11 @@ export const geographyFilterSchema = z.object({
 });
 function scope(f: GeographyFilters, history = false) {
   const params: Params = { to: f.to, ...(history ? {} : { from: f.from }) };
-  let clause = `e.login_success IS NOT NULL AND e.timestamp <= @to${history ? '' : ' AND e.timestamp >= @from'}`;
+  let clause = `e.timestamp <= @to${history ? '' : ' AND e.timestamp >= @from'}`;
   for (const [key, column, value] of [
     ['project', 'project_id', f.project !== 'all' ? f.project : undefined],
-    ['environment', 'login_environment', f.environment],
+    ['environment', 'event_environment', f.environment],
+    ['event', 'event_name', f.event],
     ['provider', 'auth_provider', f.provider],
     ['country', 'country_code', f.country],
     ['region', 'region', f.region],
@@ -33,6 +36,7 @@ function scope(f: GeographyFilters, history = false) {
       params[key] = value;
     }
   }
+  if (f.scope === 'logins') clause += ' AND e.login_success IS NOT NULL';
   if (f.success !== 'all') {
     clause += ' AND e.login_success = @success';
     params.success = f.success === 'failure' ? 0 : 1;
@@ -80,7 +84,7 @@ type Aggregate = {
 function locationKey(p: Pick<GeographyPoint, 'countryCode' | 'region' | 'city' | 'accuracyLevel'>) {
   return JSON.stringify([p.countryCode, p.region, p.city, p.accuracyLevel]);
 }
-export async function loginGeography(db: Connection, filters: GeographyFilters): Promise<GeographyData> {
+export async function eventGeography(db: Connection, filters: GeographyFilters): Promise<GeographyData> {
   const validated = geographyFilterSchema.parse(filters);
   const f = { ...filters, ...validated };
   const map = {
@@ -90,6 +94,8 @@ export async function loginGeography(db: Connection, filters: GeographyFilters):
   const empty: GeographyData = {
     locations: [],
     summary: {
+      totalEvents: 0,
+      geolocatedEvents: 0,
       totalLogins: 0,
       uniqueUsers: 0,
       geolocatedLogins: 0,
@@ -111,8 +117,17 @@ export async function loginGeography(db: Connection, filters: GeographyFilters):
   if (!empty.enabled) return empty;
   const s = scope(f);
   const visitor = db.dialect === 'sqlite' ? identity.replaceAll(' + ', ' || ') : identity;
-  const [summary] = await db.query<{ total: number; users: number; located: number; countries: number }>(
+  const [summary] = await db.query<{
+    total: number;
+    users: number;
+    located: number;
+    countries: number;
+    logins: number;
+    locatedLogins: number;
+  }>(
     `SELECT COUNT(*) AS total, COUNT(DISTINCT ${visitor}) AS users,
+    COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL THEN 1 ELSE 0 END),0) AS logins,
+    COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL AND ${geoValid} THEN 1 ELSE 0 END),0) AS locatedLogins,
     COALESCE(SUM(CASE WHEN ${geoValid} THEN 1 ELSE 0 END),0) AS located,
     COUNT(DISTINCT CASE WHEN ${geoValid} THEN e.country_code END) AS countries FROM events e WHERE ${s.clause}`,
     s.params,
@@ -242,7 +257,7 @@ export async function loginGeography(db: Connection, filters: GeographyFilters):
         f.metric === 'users' ? before?.uniqueUsers || 0 : before?.totalEvents || 0,
       ),
       applications: [...new Set(members.map((m) => m.application))],
-      providers: [...new Set(members.map((m) => m.provider))],
+      providers: [...new Set(members.map((m) => m.provider).filter(Boolean))],
     };
   });
   return {
@@ -251,9 +266,11 @@ export async function loginGeography(db: Connection, filters: GeographyFilters):
     granularity,
     truncated: rows.length > 500 || membership.length === 10000,
     summary: {
-      totalLogins: summary.total,
+      totalEvents: summary.total,
+      geolocatedEvents: summary.located,
+      totalLogins: summary.logins,
       uniqueUsers: summary.users,
-      geolocatedLogins: summary.located,
+      geolocatedLogins: summary.locatedLogins,
       coverage: summary.total ? (summary.located / summary.total) * 100 : 0,
       countries: summary.countries,
       places: locations.length,
@@ -266,4 +283,9 @@ export async function loginGeography(db: Connection, filters: GeographyFilters):
         : null,
     },
   };
+}
+
+// Existing consumers retain the successful-login default and response fields.
+export function loginGeography(db: Connection, filters: GeographyFilters): Promise<GeographyData> {
+  return eventGeography(db, { ...filters, scope: 'logins', success: filters.success || 'success' });
 }

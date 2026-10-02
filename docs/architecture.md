@@ -89,4 +89,4 @@ Origin restrictions help prevent accidental browser misuse; a public browser key
 
 ## Login Geography
 
-[Login Geography](login-geography.md) extends existing events with nullable login/geographic metadata. Short-lived encrypted work inputs are enriched after the collector response through provider adapters; the database-backed worker also runs during maintenance. SQL aggregates, project-scoped unique counts, bounded map points, and explicit event-field projections preserve the existing single-owner authorization and privacy boundaries.
+[Event Geography](geography.md) enriches every event type and extends existing events with nullable login/geographic metadata. Short-lived encrypted work inputs are enriched after the collector response through provider adapters; the database-backed worker also runs during maintenance. SQL aggregates, project-scoped unique counts, bounded map points, and explicit event-field projections preserve the existing single-owner authorization and privacy boundaries.

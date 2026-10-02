@@ -11,7 +11,7 @@ import { geographyEnabled, stageGeography, processGeographyJobs } from '@house-e
 
 const file = process.argv[2];
 if (!file) throw new Error('Usage: npm run geo:backfill -- /path/to/authorized-source.ndjson [checkpoint.json]');
-if (!geographyEnabled()) throw new Error('Login geography is disabled');
+if (!geographyEnabled()) throw new Error('Event geography is disabled');
 if (!/^[a-f\d]{64}$/i.test(process.env.GEO_QUEUE_KEY || '')) throw new Error('Configure GEO_QUEUE_KEY before backfill');
 const checkpoint = process.argv[3] || '.data/geography-backfill.json';
 const stat = await fs.stat(file);
@@ -53,20 +53,21 @@ try {
         anonymous_id: string;
         auth_provider: string | null;
         login_environment: string | null;
+        event_environment: string | null;
         geo_enrichment_status: string | null;
       }>(
-        'SELECT id, event_name, timestamp, session_id, anonymous_id, auth_provider, login_environment, geo_enrichment_status FROM events WHERE id = @id AND project_id = @project',
+        'SELECT id, event_name, timestamp, session_id, anonymous_id, auth_provider, login_environment, event_environment, geo_enrichment_status FROM events WHERE id = @id AND project_id = @project',
         { id: record.eventId, project: record.projectId },
       );
       const [project] = await db.query<Project>('SELECT * FROM projects WHERE id = @id', { id: record.projectId });
       if (
         !event ||
         !project ||
-        (event.login_environment || project.environment) !== 'production' ||
+        (process.env.GEO_PRODUCTION_ONLY === 'true' &&
+          (event.event_environment || event.login_environment || project.environment) !== 'production') ||
         Date.parse(event.timestamp) <
           Date.now() - Math.max(1, Math.min(730, Number(process.env.GEO_RETENTION_DAYS) || 30)) * 86400000 ||
-        ['enriched', 'pending'].includes(event.geo_enrichment_status || '') ||
-        !/^(?:[a-z0-9-]+\.)?auth\.login\.(succeeded|failed)\.v1$/.test(event.event_name)
+        ['enriched', 'pending'].includes(event.geo_enrichment_status || '')
       ) {
         state.skipped++;
       } else {
@@ -94,11 +95,17 @@ try {
               sessionId: event.session_id,
               anonymousId: event.anonymous_id,
               properties: {},
-              login: {
-                success: event.event_name.includes('.succeeded.'),
-                provider: event.auth_provider || 'unknown',
-                sourceIp: record.sourceIp,
-              },
+              sourceIp: record.sourceIp,
+              environment: (event.event_environment || event.login_environment || project.environment) as
+                'production' | 'staging' | 'development' | 'test',
+              ...(/^(?:[a-z0-9-]+\.)?auth\.login\.(succeeded|failed)\.v1$/.test(event.event_name)
+                ? {
+                    login: {
+                      success: event.event_name.includes('.succeeded.'),
+                      provider: event.auth_provider || 'unknown',
+                    },
+                  }
+                : {}),
             },
           ],
           { ip: null, country: null },

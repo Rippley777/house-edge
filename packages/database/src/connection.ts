@@ -4,7 +4,7 @@ import { config as loadEnv } from 'dotenv';
 import type Sqlite from 'better-sqlite3';
 import type * as MSSQL from 'mssql';
 import { schemaStatements } from './schema';
-import { geographySchemaStatements } from './geography-schema';
+import { geographySchemaStatements, eventGeographySchemaStatements } from './geography-schema';
 
 export type Params = Record<string, string | number | null>;
 export interface Connection {
@@ -62,7 +62,8 @@ export async function connect(options?: { provider?: 'sqlite' | 'azure'; filenam
     };
     return connection;
   }
-  const sql = await import('mssql');
+  const sqlModule = await import('mssql');
+  const sql = sqlModule.default ?? sqlModule;
   if (!process.env.AZURE_SQL_SERVER || !process.env.AZURE_SQL_DATABASE) throw new Error('Azure SQL server and database must be configured.');
   const config: MSSQL.config = {
     server: process.env.AZURE_SQL_SERVER,
@@ -107,6 +108,10 @@ export async function migrate(db: Connection) {
     if (!(await tx.query('SELECT version FROM schema_migrations WHERE version = 2')).length) {
       for (const statement of geographySchemaStatements(db.dialect)) await tx.execute(statement);
       await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (2, @now)', { now: new Date().toISOString() });
+    }
+    if (!(await tx.query('SELECT version FROM schema_migrations WHERE version = 3')).length) {
+      for (const statement of eventGeographySchemaStatements(db.dialect)) await tx.execute(statement);
+      await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (3, @now)', { now: new Date().toISOString() });
     }
   });
 }

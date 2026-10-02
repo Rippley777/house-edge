@@ -6,7 +6,8 @@ import type { GeoLocation } from '../../shared/src/geography';
 import { publicIp } from './client-ip';
 import { limitQuery, type Connection } from './connection';
 
-export const geographyEnabled = () => process.env.LOGIN_GEOGRAPHY_ENABLED !== 'false';
+export const geographyEnabled = () =>
+  (process.env.GEOGRAPHY_ENABLED ?? process.env.LOGIN_GEOGRAPHY_ENABLED) !== 'false';
 export function unknownLocation(status: GeoLocation['status'] = 'unknown', provider = 'none'): GeoLocation {
   return {
     countryCode: null,
@@ -247,7 +248,7 @@ export function loginMetadata(event: AnalyticsEvent, project: Project) {
   return {
     success,
     provider: event.login?.provider || 'unknown',
-    environment: event.login?.environment || project.environment,
+    environment: event.environment || event.login?.environment || project.environment,
     correlationId: event.login?.correlationId || null,
   };
 }
@@ -260,11 +261,11 @@ export async function stageGeography(
 ) {
   for (const event of events) {
     const login = loginMetadata(event, project);
-    if (!login) continue;
     const allowed = geographyEnabled();
-    const excluded = login.environment !== 'production';
+    const environment = event.environment || login?.environment || project.environment;
+    const excluded = process.env.GEO_PRODUCTION_ONLY === 'true' && environment !== 'production';
     // A server batch's transport address belongs to the application server, not its user.
-    const source = server ? event.login?.sourceIp : network.ip;
+    const source = server ? event.sourceIp || event.login?.sourceIp : network.ip;
     const ip = publicIp(source);
     const country = server ? null : network.country;
     const hash = allowed && !excluded && ip ? ipHash(ip) : null;
@@ -273,16 +274,17 @@ export async function stageGeography(
     const status = !allowed ? 'disabled' : excluded || (source && !ip) ? 'excluded' : pending ? 'pending' : 'unknown';
     await db.transaction(async (tx) => {
       const updated = await tx.execute(
-        `UPDATE events SET login_success = @success, auth_provider = @provider, login_environment = @environment,
+        `UPDATE events SET login_success = @success, auth_provider = @provider, login_environment = @loginEnvironment, event_environment = @environment,
         correlation_id = @correlation, ip_hash = @hash, geo_enrichment_status = @status, location_accuracy_level = 'unknown'
         WHERE id = @id AND project_id = @project AND geo_enrichment_status IS NULL`,
         {
           id: event.id,
           project: project.id,
-          success: login.success ? 1 : 0,
-          provider: login.provider,
-          environment: login.environment,
-          correlation: login.correlationId,
+          success: login ? Number(login.success) : null,
+          provider: login?.provider || null,
+          environment,
+          loginEnvironment: login?.environment || null,
+          correlation: login?.correlationId || null,
           hash,
           status,
         },
@@ -356,7 +358,7 @@ export async function cleanupGeography(db: Connection, now = new Date()) {
     await tx.execute(
       `UPDATE events SET ip_hash = NULL, country_code = NULL, country_name = NULL, region = NULL, city = NULL, latitude = NULL, longitude = NULL,
       timezone = NULL, accuracy_radius = NULL, is_vpn = NULL, is_proxy = NULL, is_hosting_provider = NULL, is_tor = NULL, geo_provider = NULL, enriched_at = NULL,
-      location_accuracy_level = 'unknown', geo_enrichment_status = 'expired' WHERE timestamp < @cutoff AND login_success IS NOT NULL AND COALESCE(geo_enrichment_status, '') <> 'expired'`,
+      location_accuracy_level = 'unknown', geo_enrichment_status = 'expired' WHERE timestamp < @cutoff AND geo_enrichment_status IS NOT NULL AND geo_enrichment_status <> 'expired'`,
       { cutoff },
     );
     if (!geographyEnabled()) {

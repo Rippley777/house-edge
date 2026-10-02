@@ -36,7 +36,7 @@ test('overview filters, project drilldown, event inspector, and session journey 
 test('all analytical views render without runtime errors or failed queries', async ({ page }) => {
   test.setTimeout(180000);
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
-  for (const path of ['projects', 'live', 'login-geography', 'users', 'journeys', 'funnels', 'retention', 'features', 'errors', 'performance', 'releases', 'health', 'anomalies', 'pulse', 'graveyard', 'rising', 'compare', 'ecosystem', 'relationships', 'heatmap', 'snapshot', 'saved', 'alerts', 'keys', 'settings', 'docs']) {
+  for (const path of ['projects', 'live', 'geography', 'login-geography', 'users', 'journeys', 'funnels', 'retention', 'features', 'errors', 'performance', 'releases', 'health', 'anomalies', 'pulse', 'graveyard', 'rising', 'compare', 'ecosystem', 'relationships', 'heatmap', 'snapshot', 'saved', 'alerts', 'keys', 'settings', 'docs']) {
     await page.goto(`/${path}`);
     await expect(page.locator('.view-content')).toBeVisible();
     await expect(page.locator('.loading-state')).toHaveCount(0);

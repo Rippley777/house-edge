@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { connect, migrate, schemaStatements } from '@house-edge/database';
 import fs from 'node:fs/promises';
-import { geographySchemaStatements } from '@house-edge/database/geography-schema';
+import { geographySchemaStatements, eventGeographySchemaStatements } from '@house-edge/database/geography-schema';
 await fs.mkdir('migrations', { recursive: true });
 await fs.writeFile(
   'migrations/001_initial.azure.sql',
@@ -17,6 +17,14 @@ for (const dialect of ['sqlite', 'azure'] as const)
       (dialect === 'azure' ? 'SET XACT_ABORT ON;\nBEGIN TRANSACTION;\n' : 'BEGIN IMMEDIATE;\n') +
       geographySchemaStatements(dialect).join('\n\n') +
       `\nINSERT INTO schema_migrations (version, applied_at) SELECT 2, ${dialect === 'azure' ? "CONVERT(VARCHAR(23), SYSUTCDATETIME(), 126) + 'Z'" : "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"} WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2);\nCOMMIT;\n`,
+  );
+for (const dialect of ['sqlite', 'azure'] as const)
+  await fs.writeFile(
+    `migrations/003_event_geography.${dialect}.sql`,
+    '-- Apply after migration 002. SQLite applies once; Azure DDL is idempotent.\n' +
+      (dialect === 'azure' ? 'SET XACT_ABORT ON;\nBEGIN TRANSACTION;\n' : 'BEGIN IMMEDIATE;\n') +
+      eventGeographySchemaStatements(dialect).join(dialect === 'azure' ? '\nGO\n' : '\n\n') +
+      `\nINSERT INTO schema_migrations (version, applied_at) SELECT 3, ${dialect === 'azure' ? "CONVERT(VARCHAR(23), SYSUTCDATETIME(), 126) + 'Z'" : "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"} WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 3);\nCOMMIT;\n`,
   );
 const db = await connect();
 try {

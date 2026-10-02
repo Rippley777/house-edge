@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 export interface NodeOptions { projectKey: string; key: string; endpoint: string; version?: string; }
-export interface Context { sessionId?: string; anonymousId?: string; userId?: string; path?: string;
+export interface Context { sourceIp?: string; environment?: 'production' | 'staging' | 'development' | 'test'; sessionId?: string; anonymousId?: string; userId?: string; path?: string;
   login?: { success: boolean; provider?: string; environment?: 'production' | 'staging' | 'development' | 'test'; correlationId?: string; sourceIp?: string };
 }
 export function createHouseEdge(options: NodeOptions) {
@@ -16,7 +16,7 @@ export function createHouseEdge(options: NodeOptions) {
   function track(event: string, properties: Record<string, unknown> = {}, context: Context = {}) {
     try {
       const item = { id: randomUUID(), event, sessionId: context.sessionId || instance, anonymousId: context.anonymousId || instance,
-        userId: context.userId, path: context.path?.split(/[?#]/)[0], login: context.login, properties: clean(properties), timestamp: new Date().toISOString(), deviceType: 'server', version: options.version,
+        userId: context.userId, path: context.path?.split(/[?#]/)[0], login: context.login, sourceIp: context.sourceIp, environment: context.environment, properties: clean(properties), timestamp: new Date().toISOString(), deviceType: 'server', version: options.version,
         ...(event === 'performance' && typeof properties.value === 'number' ? { durationMs: properties.value } : {}) };
       if (Buffer.byteLength(JSON.stringify(item)) > 16000) return;
       queue.push(item); if (queue.length > 200) queue.shift();

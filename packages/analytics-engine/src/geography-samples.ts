@@ -72,6 +72,8 @@ export function geographySamples(f: GeographyFilters): GeographyData {
     granularity: 'city',
     truncated: false,
     summary: {
+      totalEvents: total,
+      geolocatedEvents: total,
       totalLogins: total,
       uniqueUsers: locations.reduce((n, l) => n + l.uniqueUsers, 0),
       geolocatedLogins: total,

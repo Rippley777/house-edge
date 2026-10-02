@@ -54,3 +54,16 @@ export function geographySchemaStatements(dialect: 'sqlite' | 'azure'): string[]
     ),
   ];
 }
+
+// Additive expansion of migration 002; retain login columns and contracts.
+export function eventGeographySchemaStatements(dialect: 'sqlite' | 'azure'): string[] {
+  return [
+    dialect === 'sqlite'
+      ? 'ALTER TABLE events ADD COLUMN event_environment VARCHAR(40) NULL;'
+      : "IF COL_LENGTH('dbo.events', 'event_environment') IS NULL ALTER TABLE dbo.events ADD event_environment VARCHAR(40) NULL;",
+    'UPDATE events SET event_environment = COALESCE(login_environment, (SELECT environment FROM projects WHERE projects.id = events.project_id)) WHERE event_environment IS NULL;',
+    dialect === 'sqlite'
+      ? 'CREATE INDEX IF NOT EXISTS ix_event_geography_scope ON events (project_id, event_environment, event_name, timestamp);'
+      : "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_event_geography_scope' AND object_id = OBJECT_ID('dbo.events')) CREATE INDEX ix_event_geography_scope ON dbo.events (project_id, event_environment, event_name, timestamp);",
+  ];
+}

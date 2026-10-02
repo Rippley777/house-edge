@@ -46,6 +46,8 @@ function fixture() {
   return {
     locations,
     summary: {
+      totalEvents: 40,
+      geolocatedEvents: 30,
       totalLogins: 40,
       uniqueUsers: 15,
       geolocatedLogins: 30,
@@ -163,4 +165,52 @@ test('map style failure preserves the table and aggregate privacy', async ({ pag
   await page.locator('.geo-table tbody tr').filter({ hasText: 'London' }).click();
   await expect(page.locator('.geo-details')).toContainText('United Kingdom');
   await expect(page.locator('.geography-view')).not.toContainText('sourceIp');
+});
+
+test('Event Geography defaults to all events and preserves event filters, login scope, exports and saved views', async ({
+  page,
+}) => {
+  const queries: URL[] = [];
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.route('**/api/geography?*', (route) => {
+    queries.push(new URL(route.request().url()));
+    return route.fulfill({ json: fixture() });
+  });
+  await page.goto('/geography?granularity=city');
+  await expect(page.getByRole('heading', { name: 'Event Geography', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Event scope')).toHaveValue('all');
+  await expect(page.getByText('40 total events')).toBeVisible();
+  await expect(page.getByTestId('login-map')).toHaveAttribute('data-map-ready', 'true');
+  await page.getByLabel('Event name', { exact: true }).fill('checkout_completed');
+  await page.getByLabel('Event name', { exact: true }).press('Enter');
+  await expect.poll(() => queries.at(-1)?.searchParams.get('event')).toBe('checkout_completed');
+  await page.getByLabel('Date range').selectOption('30d');
+  await expect(page).toHaveURL(/event=checkout_completed/);
+  await page.getByLabel('Event scope').selectOption('logins');
+  await expect.poll(() => queries.at(-1)?.searchParams.get('scope')).toBe('logins');
+  await expect.poll(() => queries.at(-1)?.searchParams.get('success')).toBe('all');
+  await page.getByLabel('Event scope').selectOption('all');
+  await expect.poll(() => queries.at(-1)?.searchParams.get('scope')).toBe('events');
+  await page.getByLabel('Event name', { exact: true }).fill('');
+  await page.getByLabel('Event name', { exact: true }).press('Enter');
+  await expect.poll(() => queries.at(-1)?.searchParams.has('event')).toBe(false);
+  await page.getByRole('button', { name: 'Event density', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Event density', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByLabel('Save current view').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('View name').fill('All-event geography');
+  await dialog.getByRole('button', { name: 'Save this view', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const saved = await (await page.request.get('/api/data?view=saved')).json();
+  const row = saved.rows.find((r: { name: string }) => r.name === 'All-event geography');
+  expect(row.view_type).toBe('geography');
+  expect(JSON.parse(row.filters_json).scope).toBe('events');
+  const download = page.waitForEvent('download');
+  await page.getByLabel('Export CSV').click();
+  expect((await download).suggestedFilename()).toBe('house-edge-geography.csv');
+  expect(errors).toEqual([]);
 });

@@ -8,6 +8,7 @@ export const views: Record<string, ViewDefinition> = {
   events: { title: 'Event Explorer', subtitle: 'Every action tells a story. Get into the details.', icon: Activity, group: 'ANALYTICS' },
   sessions: { title: 'Session Explorer', subtitle: 'Follow the path from first impression to final interaction.', icon: Compass, group: 'ANALYTICS' },
   users: { title: 'Users', subtitle: 'Understand the people behind the activity. Anonymous by default.', icon: Users, group: 'ANALYTICS' },
+  geography: { title: 'Event Geography', subtitle: 'Approximate network locations for every event across your applications.', icon: Compass, group: 'ANALYTICS' },
   'login-geography': { title: 'Login Geography', subtitle: 'Approximate network locations across your applications.', icon: Compass, group: 'ANALYTICS' },
   journeys: { title: 'User Journeys', subtitle: 'Discover the paths your users actually take.', icon: Route, group: 'ANALYTICS' },
   funnels: { title: 'Funnels', subtitle: 'See where people convert, and where they walk away.', icon: ListFilter, group: 'ANALYTICS' },
@@ -34,7 +35,7 @@ export const views: Record<string, ViewDefinition> = {
 };
 export const navGroups = [
   { title: '', items: ['overview', 'live'] },
-  { title: 'ANALYTICS', items: ['projects', 'events', 'sessions', 'login-geography', 'funnels', 'retention', 'features'], more: ['users', 'journeys'] },
+  { title: 'ANALYTICS', items: ['projects', 'events', 'sessions', 'geography', 'funnels', 'retention', 'features'], more: ['users', 'journeys'] },
   { title: 'OBSERVABILITY', items: ['errors', 'performance', 'releases', 'anomalies'], more: ['health'] },
   { title: 'INSIGHTS', items: ['pulse', 'graveyard', 'rising', 'ecosystem'], more: ['compare', 'relationships', 'heatmap', 'snapshot'] },
   { title: 'TOOLS', items: ['saved', 'alerts'] },

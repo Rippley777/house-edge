@@ -59,10 +59,10 @@ export async function ingest(db: Connection, project: Project, events: Analytics
         session: event.sessionId, anonymous: event.anonymousId, user: event.userId || null,
         path, referrer, properties: JSON.stringify(props), device: event.deviceType || 'desktop',
         browser: event.browser || 'Unknown', os: event.operatingSystem || 'Unknown', country: event.country || '',
-        duration: event.durationMs ?? null, version: event.version || '', fingerprint,
+        environment: event.environment || event.login?.environment || project.environment, duration: event.durationMs ?? null, version: event.version || '', fingerprint,
       };
-      await tx.execute(`INSERT INTO events (id, project_id, event_name, timestamp, session_id, anonymous_id, user_id, path, referrer, properties_json, device_type, browser, operating_system, country, duration_ms, app_version, error_fingerprint)
-        VALUES (@id, @project, @event, @timestamp, @session, @anonymous, @user, @path, @referrer, @properties, @device, @browser, @os, @country, @duration, @version, @fingerprint)`, values);
+      await tx.execute(`INSERT INTO events (id, project_id, event_name, timestamp, session_id, anonymous_id, user_id, path, referrer, properties_json, device_type, browser, operating_system, country, duration_ms, app_version, error_fingerprint, event_environment)
+        VALUES (@id, @project, @event, @timestamp, @session, @anonymous, @user, @path, @referrer, @properties, @device, @browser, @os, @country, @duration, @version, @fingerprint, @environment)`, values);
       const login = loginMetadata(event, project);
       if (login) await tx.execute('UPDATE events SET login_success = @success, login_environment = @environment, auth_provider = @provider, correlation_id = @correlation, location_accuracy_level = @accuracy WHERE id = @id', {
         id: event.id, success: Number(login.success), environment: login.environment, provider: login.provider, correlation: login.correlationId, accuracy: 'unknown',

@@ -14,13 +14,16 @@ import {
   HttpGeolocationProvider,
   type GeolocationProvider,
 } from '@house-edge/database/geolocation';
-import { loginGeography } from '@house-edge/engine/geography';
+import { eventGeography, loginGeography } from '@house-edge/engine/geography';
 import { viewData } from '@house-edge/engine';
 import { collect } from '@house-edge/collector';
+import { createHouseEdge as createNodeAnalytics } from '../packages/sdk-node/src/index';
 import { GET } from '../apps/dashboard/app/api/[...path]/route';
 
 let db: Connection, project: Project, key: string;
 const environmentKeys = [
+  'GEOGRAPHY_ENABLED',
+  'GEO_PRODUCTION_ONLY',
   'GEO_QUEUE_KEY',
   'GEO_IP_HASH_SALT',
   'LOGIN_GEOGRAPHY_ENABLED',
@@ -33,6 +36,8 @@ const environmentKeys = [
 let original: Record<string, string | undefined>;
 beforeEach(async () => {
   original = Object.fromEntries(environmentKeys.map((k) => [k, process.env[k]]));
+  delete process.env.GEOGRAPHY_ENABLED;
+  process.env.GEO_PRODUCTION_ONLY = 'true';
   process.env.GEO_QUEUE_KEY = '12'.repeat(32);
   process.env.GEO_IP_HASH_SALT = 'test-only-geography-hash-salt-12345678';
   process.env.LOGIN_GEOGRAPHY_ENABLED = 'true';
@@ -356,7 +361,7 @@ test('migration 2 upgrades an existing database and is restartable', async () =>
   const versions = await db.query<{ version: number }>('SELECT version FROM schema_migrations ORDER BY version');
   assert.deepEqual(
     versions.map((v) => v.version),
-    [1, 2],
+    [1, 2, 3],
   );
 });
 
@@ -397,4 +402,136 @@ test('enrichment leases prevent concurrent workers and recover after a crash', a
   await stage(login({ login: { success: true, provider: 'github', sourceIp: '1.1.1.1' } }));
   await db.execute("UPDATE geo_jobs SET lease_token = 'crashed-worker', lease_until = '2000-01-01T00:00:00.000Z'");
   assert.equal((await processGeographyJobs(db, 25, [provider])).enriched, 1);
+});
+
+test('all event types collect geography with server-only source context and preserve login analytics', async () => {
+  process.env.GEO_PRODUCTION_ONLY = 'false';
+  const events = ['page_view', 'checkout_completed', 'performance', 'error'].map((event, i) =>
+    login({
+      event,
+      login: undefined,
+      sourceIp: '8.8.8.8',
+      environment: i === 1 ? 'staging' : 'production',
+      properties: { sourceIp: 'must-be-redacted', result: 'ok' },
+    }),
+  );
+  events.push(
+    login({ event: 'deck.auth.login.failed.v1', login: { success: false, provider: 'github' }, sourceIp: '8.8.8.8' }),
+  );
+  const request = (key: string, events: AnalyticsEvent[], origin?: string) =>
+    new Request('https://analytics.example/api/collect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(origin ? { origin } : {}) },
+      body: JSON.stringify({ projectKey: project.project_key, key, events }),
+    });
+  const browserKey = await db.transaction((tx) => issueKey(tx, project.id, 'ingest'));
+  assert.equal((await collect(request(browserKey, events, 'https://test.example'))).status, 400);
+  assert.equal(
+    (await collect(request(key, [login({ sourceIp: '1.1.1.1' })]))).status,
+    400,
+    'conflicting legacy and new source fields',
+  );
+  assert.equal((await collect(request(key, events))).status, 202);
+  await processGeographyJobs(db, 25, [provider]);
+  const all = await eventGeography(db, f());
+  assert.equal(all.summary.totalEvents, 5);
+  assert.equal(all.summary.geolocatedEvents, 5);
+  assert.equal(all.summary.totalLogins, 1);
+  assert.equal(all.summary.coverage, 100);
+  assert.equal((await eventGeography(db, { ...f(), event: 'checkout_completed' })).summary.totalEvents, 1);
+  assert.equal((await eventGeography(db, { ...f(), environment: 'staging' })).summary.totalEvents, 1);
+  assert.equal((await eventGeography(db, { ...f(), scope: 'logins' })).summary.totalEvents, 1);
+  assert.equal((await loginGeography(db, f())).summary.totalLogins, 0, 'legacy successful-login default');
+  assert.equal((await loginGeography(db, { ...f(), success: 'failure' })).summary.totalLogins, 1);
+  const raw = JSON.stringify(await viewData('events', f()));
+  assert.ok(raw.includes('Chicago'));
+  for (const value of ['8.8.8.8', 'must-be-redacted', 'ip_hash', 'encrypted_ip'])
+    assert.ok(!raw.includes(value), value);
+  const api = (suffix: string) =>
+    GET(
+      new Request(`https://analytics.example/api/${suffix}`, {
+        headers: { Authorization: `Bearer ${process.env.ADMIN_KEY}` },
+      }),
+      { params: Promise.resolve({ path: [suffix.split('?')[0]] }) },
+    );
+  assert.equal((await (await api('geography')).json()).summary.totalEvents, 5);
+  assert.equal((await (await api('geography?event=error')).json()).summary.totalEvents, 1);
+  const exportResponse = await api('export?view=geography&event=error');
+  assert.equal(exportResponse.status, 200);
+  const csv = await exportResponse.text();
+  assert.ok(csv.includes('Chicago'));
+  assert.ok(!csv.includes('8.8.8.8'));
+  assert.equal((await api('export?view=geography&sample=true')).status, 400);
+});
+
+test('browser page views and custom events use trusted transport while servers never inherit transport geography', async () => {
+  const browserKey = await db.transaction((tx) => issueKey(tx, project.id, 'ingest'));
+  const events = ['page_view', 'button_clicked'].map((event) => login({ event, login: undefined }));
+  const response = await collect(
+    new Request('https://analytics.example/api/collect', {
+      method: 'POST',
+      headers: { origin: 'https://test.example', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectKey: project.project_key, key: browserKey, events }),
+    }),
+    { remoteAddress: '8.8.8.8' },
+  );
+  assert.equal(response.status, 202);
+  await processGeographyJobs(db, 25, [provider]);
+  await stage(login({ event: 'background_job', login: undefined }));
+  const summary = (await eventGeography(db, f())).summary;
+  assert.equal(summary.totalEvents, 3);
+  assert.equal(summary.geolocatedEvents, 2);
+  assert.equal(summary.unknownLocations, 1);
+  assert.equal(summary.totalLogins, 0);
+});
+
+test('retention and the general geography switch apply to non-login events', async () => {
+  const event = login({ event: 'checkout_completed', login: undefined, sourceIp: '8.8.8.8' });
+  await stage(event);
+  await processGeographyJobs(db, 25, [provider]);
+  await cleanupGeography(db, new Date(Date.now() + 31 * 86400000));
+  const [row] = await db.query<{ city: string | null; geo_enrichment_status: string; ip_hash: string | null }>(
+    'SELECT * FROM events WHERE id = @id',
+    { id: event.id },
+  );
+  assert.equal(row.city, null);
+  assert.equal(row.ip_hash, null);
+  assert.equal(row.geo_enrichment_status, 'expired');
+  process.env.GEOGRAPHY_ENABLED = 'false';
+  await stage(login({ event: 'page_view', login: undefined, sourceIp: '8.8.8.8' }));
+  assert.equal((await db.query('SELECT * FROM geo_jobs')).length, 0);
+  assert.equal((await eventGeography(db, f())).enabled, false);
+});
+
+test('Node SDK carries source context on custom events, timings and errors without leaking it into properties', async () => {
+  const originalFetch = globalThis.fetch;
+  const sent: AnalyticsEvent[] = [];
+  globalThis.fetch = async (_input, init) => {
+    sent.push(...JSON.parse(String(init?.body)).events);
+    return new Response(null, { status: 202 });
+  };
+  try {
+    const analytics = createNodeAnalytics({
+      projectKey: project.project_key,
+      key,
+      endpoint: 'https://analytics.example/api/collect',
+    });
+    const context = { sourceIp: '8.8.8.8', environment: 'staging' as const };
+    analytics.track('checkout_completed', { sourceIp: 'secret-network', amount: 42 }, context);
+    analytics.timing('checkout', 120, context);
+    analytics.error(new Error('Test error'), context);
+    await analytics.flush();
+    assert.deepEqual(
+      sent.map((e) => e.event),
+      ['checkout_completed', 'performance', 'error'],
+    );
+    for (const event of sent) {
+      assert.equal(event.sourceIp, context.sourceIp);
+      assert.equal(event.environment, context.environment);
+    }
+    assert.ok(!JSON.stringify(sent).includes('secret-network'));
+    assert.equal(sent[1].durationMs, 120);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

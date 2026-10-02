@@ -55,6 +55,7 @@ function EventsView(props: ViewProps) {
     { key: 'project_name', label: 'Project', render: projectCell },
     { key: 'event_name', label: 'Event', render: r => <span className={`event-label ${r.event_name === 'error' ? 'error' : ''}`}><span />{r.event_name}</span> },
     { key: 'path', label: 'Route', render: r => <code className="route-code">{r.path || '/'}</code> },
+    { key: 'country_name', label: 'Network location', render: r => <span>{[r.city, r.region, r.country_name].filter(Boolean).join(', ') || 'Unknown'}<small className="cell-sub">{r.location_accuracy_level || 'unknown'} · {r.geo_enrichment_status || 'not collected'}</small></span> },
     { key: 'session_id', label: 'Session', render: r => <code className="muted">{String(r.session_id).slice(0, 10)}…</code> },
     { key: 'device_type', label: 'Device', render: r => <span className="muted">{r.browser}<small className="cell-sub">{r.device_type}</small></span> },
     { key: 'id', label: '', render: () => <ChevronRight size={14} className="muted" /> },

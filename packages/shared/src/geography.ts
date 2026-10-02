@@ -22,6 +22,8 @@ export interface GeographyFilters {
   project?: string;
   environment?: string;
   provider?: string;
+  scope?: 'events' | 'logins';
+  event?: string;
   success?: 'success' | 'failure' | 'all';
   metric?: 'events' | 'users';
   country?: string;
@@ -57,6 +59,8 @@ export interface GeographyPoint {
 export interface GeographyData {
   locations: GeographyPoint[];
   summary: {
+    totalEvents: number;
+    geolocatedEvents: number;
     totalLogins: number;
     uniqueUsers: number;
     geolocatedLogins: number;
