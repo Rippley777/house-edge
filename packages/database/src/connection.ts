@@ -24,7 +24,9 @@ export function rootPath() {
 }
 export function limitQuery(db: Connection, sql: string, limit: number) {
   const n = Math.max(1, Math.min(100000, Math.floor(limit)));
-  return db.dialect === 'sqlite' ? `${sql} LIMIT ${n}` : sql.replace(/^SELECT /i, `SELECT TOP (${n}) `);
+  return db.dialect === 'sqlite'
+    ? `${sql} LIMIT ${n}`
+    : sql.replace(/^SELECT (DISTINCT )?/i, (_, distinct: string | undefined) => `SELECT ${distinct || ''}TOP (${n}) `);
 }
 loadEnv({ path: path.join(rootPath(), '.env'), quiet: true });
 export function datePart(db: Connection, column: string, length = 10) {

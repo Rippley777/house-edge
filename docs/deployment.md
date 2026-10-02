@@ -43,7 +43,9 @@ npm ci
 npm run db:migrate
 ```
 
-Alternatively, review and execute `migrations/001_initial.azure.sql` through your Azure SQL migration process. The script is idempotent and transactional. The application does not create Azure tables on startup; missing migrations fail the readiness check.
+Alternatively, review and execute `migrations/001_initial.azure.sql` through your Azure SQL migration process. The script is idempotent and transactional. The application does not create Azure tables on startup; apply migrations before deploying code that depends on them.
+
+Before deploying Login Geography, also apply `migrations/002_login_geography.azure.sql` with the migration credentials. The runtime account's SELECT/INSERT/UPDATE/DELETE permissions cannot apply this migration. A code redeploy does not update the Azure SQL schema, and `/api/health` currently checks connectivity only; it can return 200 while the geography API fails because migration 002 is missing.
 
 Do not seed your production database. Seeding Azure is intentionally blocked unless `ALLOW_DEMO_SEED=true`, and the seed command only works on an empty project table.
 
@@ -96,6 +98,14 @@ npm start
 ```
 
 For a smaller artifact, deploy Next.js standalone output from `apps/dashboard/.next/standalone`. Copy `apps/dashboard/public` and `.next/static` to the corresponding dashboard directories in that artifact, then run `node apps/dashboard/server.js` from the artifact root. This is the approach in the Dockerfile. See [Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output).
+
+### GitHub Actions redeploys
+
+`.github/workflows/azure-deploy.yml` builds and packages the current commit on Linux, deploys it to the existing `house-edge-daac2bd8` App Service, and requests cleanup and a restart. Its `NEXT_DEPLOYMENT_ID` combines the commit SHA, workflow run ID, and run attempt. Next.js embeds this value during the build and uses it to reload an open browser session when navigation detects a different deployment. Set this variable before `npm run build` when using another deployment process; changing it only in Azure runtime settings does not update the built assets.
+
+The workflow polls the login page for that exact deployment ID. A successful upload or a page containing the product name alone cannot prove that the new build is running. The check fails if Azure continues serving a previous release.
+
+If a redeploy appears unchanged, first open the site in a private window or hard-refresh it. To confirm the running release, inspect the login page's HTML for `data-dpl-id` and compare it with the workflow's verified deployment ID. For older builds without a deployment ID, compare the build ID embedded in the page with `apps/dashboard/.next/BUILD_ID` in the deployed ZIP. With `WEBSITE_RUN_FROM_PACKAGE=1`, Azure runs the selected ZIP from `/home/data/SitePackages`; its `packagename.txt` identifies the selected package. If the identifiers differ, inspect the Azure deployment and restart logs before redeploying again.
 
 ## 5. Schedule maintenance
 

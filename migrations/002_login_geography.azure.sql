@@ -60,5 +60,5 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_login_enrichment' AND 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_geo_jobs_expiry' AND object_id = OBJECT_ID('dbo.geo_jobs')) CREATE INDEX ix_geo_jobs_expiry ON dbo.geo_jobs (expires_at, lease_until);
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_geo_cache_expiry' AND object_id = OBJECT_ID('dbo.geo_cache')) CREATE INDEX ix_geo_cache_expiry ON dbo.geo_cache (expires_at);
-INSERT INTO schema_migrations (version, applied_at) SELECT 2, CONVERT(VARCHAR(24), SYSUTCDATETIME(), 127) + 'Z' WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2);
+INSERT INTO schema_migrations (version, applied_at) SELECT 2, CONVERT(VARCHAR(23), SYSUTCDATETIME(), 126) + 'Z' WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 2);
 COMMIT;
