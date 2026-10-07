@@ -43,6 +43,7 @@ export async function collect(request: Request, transport: { remoteAddress?: str
   const origins: string[] = JSON.parse(project.allowed_origins);
   if ((project.scope === 'ingest' && (!origin || !origins.includes(origin))) || (project.scope === 'server' && origin)) return Response.json({ error: 'Origin is not allowed for this key' }, { status: 403 });
   const headers = origin ? cors(origin) : { 'Cache-Control': 'no-store' };
+  if (events.some(e => e.location !== undefined && project.scope !== 'server')) return Response.json({ error: 'location requires a server ingestion key' }, { status: 400, headers });
   if (events.some(e => e.sourceIp && project.scope !== 'server')) return Response.json({ error: 'sourceIp requires a server ingestion key' }, { status: 400, headers });
   if (events.some(e => e.sourceIp && e.login?.sourceIp && e.sourceIp !== e.login.sourceIp)) return Response.json({ error: 'Conflicting source IP fields' }, { status: 400, headers });
   if (events.some(e => e.login && (!loginMetadata(e, project) || (e.login.sourceIp && project.scope !== 'server')))) return Response.json({ error: 'Login metadata requires a matching versioned login event; sourceIp requires a server key' }, { status: 400, headers });

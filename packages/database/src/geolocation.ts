@@ -3,6 +3,7 @@ import { open, type CityResponse } from 'maxmind';
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { AnalyticsEvent, Project } from '@house-edge/shared';
 import type { GeoLocation } from '../../shared/src/geography';
+import { parseCloudflareLocation, type CloudflareLocation } from '../../shared/src/cloudflare-location';
 import { publicIp } from './client-ip';
 import { limitQuery, type Connection } from './connection';
 
@@ -86,6 +87,26 @@ export function normalizeLocation(value: unknown, provider: string): GeoLocation
     isProxy: indicator(v.isProxy),
     isHostingProvider: indicator(v.isHostingProvider),
     isTor: indicator(v.isTor),
+  };
+}
+export function cloudflareGeoLocation(location: CloudflareLocation): GeoLocation {
+  const normalized = normalizeLocation(
+    {
+      ...location,
+      countryCode: location.country,
+      coordinatesAreCentroid: true,
+      accuracyLevel: location.city ? 'city' : location.region ? 'region' : 'country',
+    },
+    'cloudflare',
+  );
+  return {
+    ...normalized,
+    regionCode: location.regionCode || null,
+    postalCode: location.postalCode || null,
+    colo: location.colo || null,
+    asn: location.asn || null,
+    networkOrganization: location.networkOrganization || null,
+    accuracyRadius: normalized.accuracyLevel === 'region' ? 100 : normalized.accuracyRadius,
   };
 }
 export interface GeolocationProvider {
@@ -265,11 +286,14 @@ export async function stageGeography(
     const environment = event.environment || login?.environment || project.environment;
     const excluded = process.env.GEO_PRODUCTION_ONLY === 'true' && environment !== 'production';
     // A server batch's transport address belongs to the application server, not its user.
-    const source = server ? event.sourceIp || event.login?.sourceIp : network.ip;
+    const cloudflare = server ? parseCloudflareLocation(event.location) : null;
+    const source = server ? cloudflare?.ip || event.sourceIp || event.login?.sourceIp : network.ip;
     const ip = publicIp(source);
     const country = server ? null : network.country;
     const hash = allowed && !excluded && ip ? ipHash(ip) : null;
-    const encrypted = allowed && !excluded && ip ? encrypt(ip) : null;
+    // Prelocated Cloudflare events need no raw-IP queue, cache, or vendor lookup.
+    const direct = allowed && !excluded && cloudflare ? cloudflareGeoLocation(cloudflare) : null;
+    const encrypted = allowed && !excluded && !cloudflare && ip ? encrypt(ip) : null;
     const pending = allowed && !excluded && (encrypted || country);
     const status = !allowed ? 'disabled' : excluded || (source && !ip) ? 'excluded' : pending ? 'pending' : 'unknown';
     await db.transaction(async (tx) => {
@@ -289,6 +313,7 @@ export async function stageGeography(
           status,
         },
       );
+      if (updated && direct) await writeLocation(tx, event.id, direct);
       if (updated && pending)
         await tx.execute(
           'INSERT INTO geo_jobs (event_id, encrypted_ip, country_code, expires_at) VALUES (@id, @ip, @country, @expiry)',
@@ -314,32 +339,41 @@ export async function saveLocation(db: Connection, id: string, location: GeoLoca
       ).length
     )
       return;
-    await tx.execute(
-      `UPDATE events SET country_code = @countryCode, country_name = @countryName, region = @region, city = @city,
-      latitude = @latitude, longitude = @longitude, timezone = @timezone, location_accuracy_level = @accuracyLevel, accuracy_radius = @accuracyRadius,
-      geo_provider = @provider, geo_enrichment_status = @status, is_vpn = @vpn, is_proxy = @proxy, is_hosting_provider = @hosting, is_tor = @tor, enriched_at = @now WHERE id = @id`,
-      {
-        id,
-        countryCode: location.countryCode,
-        countryName: location.countryName,
-        region: location.region,
-        city: location.city,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        timezone: location.timezone,
-        accuracyLevel: location.accuracyLevel,
-        accuracyRadius: location.accuracyRadius,
-        provider: location.provider,
-        status: location.status,
-        vpn: location.isVpn === null ? null : Number(location.isVpn),
-        proxy: location.isProxy === null ? null : Number(location.isProxy),
-        hosting: location.isHostingProvider === null ? null : Number(location.isHostingProvider),
-        tor: location.isTor === null ? null : Number(location.isTor),
-        now: new Date().toISOString(),
-      },
-    );
-    await tx.execute('DELETE FROM geo_jobs WHERE event_id = @id', { id });
+    await writeLocation(tx, id, location);
   });
+}
+async function writeLocation(tx: Connection, id: string, location: GeoLocation) {
+  await tx.execute(
+    `UPDATE events SET country_code = @countryCode, country_name = @countryName, region = @region, city = @city,
+      latitude = @latitude, longitude = @longitude, timezone = @timezone, location_accuracy_level = @accuracyLevel, accuracy_radius = @accuracyRadius,
+      region_code = @regionCode, postal_code = @postalCode, cloudflare_colo = @colo, network_asn = @asn, network_organization = @networkOrganization,
+      geo_provider = @provider, geo_enrichment_status = @status, is_vpn = @vpn, is_proxy = @proxy, is_hosting_provider = @hosting, is_tor = @tor, enriched_at = @now WHERE id = @id`,
+    {
+      id,
+      countryCode: location.countryCode,
+      countryName: location.countryName,
+      region: location.region,
+      city: location.city,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      timezone: location.timezone,
+      regionCode: location.regionCode || null,
+      postalCode: location.postalCode || null,
+      colo: location.colo || null,
+      asn: location.asn || null,
+      networkOrganization: location.networkOrganization || null,
+      accuracyLevel: location.accuracyLevel,
+      accuracyRadius: location.accuracyRadius,
+      provider: location.provider,
+      status: location.status,
+      vpn: location.isVpn === null ? null : Number(location.isVpn),
+      proxy: location.isProxy === null ? null : Number(location.isProxy),
+      hosting: location.isHostingProvider === null ? null : Number(location.isHostingProvider),
+      tor: location.isTor === null ? null : Number(location.isTor),
+      now: new Date().toISOString(),
+    },
+  );
+  await tx.execute('DELETE FROM geo_jobs WHERE event_id = @id', { id });
 }
 export async function cleanupGeography(db: Connection, now = new Date()) {
   const cutoff = new Date(
@@ -357,7 +391,8 @@ export async function cleanupGeography(db: Connection, now = new Date()) {
     });
     await tx.execute(
       `UPDATE events SET ip_hash = NULL, country_code = NULL, country_name = NULL, region = NULL, city = NULL, latitude = NULL, longitude = NULL,
-      timezone = NULL, accuracy_radius = NULL, is_vpn = NULL, is_proxy = NULL, is_hosting_provider = NULL, is_tor = NULL, geo_provider = NULL, enriched_at = NULL,
+      timezone = NULL, region_code = NULL, postal_code = NULL, cloudflare_colo = NULL, network_asn = NULL, network_organization = NULL,
+      accuracy_radius = NULL, is_vpn = NULL, is_proxy = NULL, is_hosting_provider = NULL, is_tor = NULL, geo_provider = NULL, enriched_at = NULL,
       location_accuracy_level = 'unknown', geo_enrichment_status = 'expired' WHERE timestamp < @cutoff AND geo_enrichment_status IS NOT NULL AND geo_enrichment_status <> 'expired'`,
       { cutoff },
     );

@@ -22,6 +22,7 @@
     "build:sdk": "tsx scripts/build-sdk.ts",
     "geo:backfill": "tsx scripts/geography-backfill.ts",
     "geo:enrich": "tsx scripts/geography-enrich.ts",
+    "geo:verify": "node --import tsx scripts/geography-verify.ts",
     "lint": "eslint apps packages scripts tests",
     "format": "prettier --write"
   },

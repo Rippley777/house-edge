@@ -74,6 +74,7 @@ The packages are built locally, not published to npm by this project. Install th
 | `npm run lint` | Lint TypeScript (existing unused declarations are reported as warnings) |
 | `npm run format -- <files>` | Format selected changed files with Prettier |
 | `npm run geo:enrich` | Drain a bounded event geography enrichment batch |
+| `npm run geo:verify -- /path/to/rippley-labs` | Trace synthetic Cloudflare visitors through an isolated database, API and map data |
 | `npm run geo:backfill -- <source.ndjson> [checkpoint.json]` | Resume an authorized historical event/IP export |
 | `npm run typecheck` | Check the entire monorepo |
 | `npm test` | Backend, privacy, authentication, and analytics regression tests |

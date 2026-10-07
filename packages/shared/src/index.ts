@@ -19,6 +19,8 @@ export const eventSchema = z.object({
   version: z.string().max(80).optional(),
   // All event types can carry server-verified network context. Never persisted as raw IP.
   sourceIp: z.string().max(64).optional(),
+  // Only server keys may provide this optional versioned envelope. Normalize separately.
+  location: z.unknown().optional(),
   environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
   login: z.object({
     success: z.boolean(), provider: z.string().trim().min(1).max(80).default('unknown'),

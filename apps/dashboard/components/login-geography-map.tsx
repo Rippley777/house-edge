@@ -2,11 +2,12 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
+import { geographyFeatures as features } from '../../../packages/shared/src/geography-map';
 import type { GeographyPoint } from '../../../packages/shared/src/geography';
 
 interface Props {
   locations: GeographyPoint[];
-  metric: 'events' | 'users';
+  metric: 'events' | 'users' | 'visits';
   mode: 'clusters' | 'heatmap';
   theme: 'light' | 'dark';
   styleUrl: string;
@@ -15,20 +16,6 @@ interface Props {
   reset: number;
   fitKey: string;
   onZoom: (zoom: number) => void;
-}
-function features(points: GeographyPoint[], metric: Props['metric']) {
-  return {
-    type: 'FeatureCollection' as const,
-    features: points
-      .filter(
-        (p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && !(p.latitude === 0 && p.longitude === 0),
-      )
-      .map((p) => ({
-        type: 'Feature' as const,
-        properties: { id: p.id, weight: metric === 'users' ? p.uniqueUsers : p.totalEvents, accuracy: p.accuracyLevel },
-        geometry: { type: 'Point' as const, coordinates: [p.longitude, p.latitude] },
-      })),
-  };
 }
 export default function GeographyMap(props: Props) {
   const element = useRef<HTMLDivElement>(null),

@@ -361,7 +361,7 @@ test('migration 2 upgrades an existing database and is restartable', async () =>
   const versions = await db.query<{ version: number }>('SELECT version FROM schema_migrations ORDER BY version');
   assert.deepEqual(
     versions.map((v) => v.version),
-    [1, 2, 3],
+    [1, 2, 3, 4],
   );
 });
 

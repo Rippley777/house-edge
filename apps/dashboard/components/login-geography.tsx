@@ -32,13 +32,16 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
     params = useSearchParams();
   const legacy = view === 'login-geography';
   const title = legacy ? 'Login Geography' : 'Event Geography';
-  const eventLabel = legacy ? 'Login events' : 'Events';
+  const visits = !legacy && params.get('scope') === 'visits';
+  const eventLabel = legacy ? 'Login events' : visits ? 'Page views' : 'Events';
   const resultFilter =
     params.get('success') === 'success' || params.get('success') === 'failure'
       ? params.get('success')!
-      : params.get('scope') === 'logins'
-        ? 'logins'
-        : 'all';
+      : params.get('scope') === 'visits'
+        ? 'visits'
+        : params.get('scope') === 'logins'
+          ? 'logins'
+          : 'all';
   const [automatic, setAutomatic] = useState('country');
   const [selected, setSelected] = useState<string | null>(null),
     [reset, setReset] = useState(0);
@@ -46,7 +49,7 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
     [ascending, setAscending] = useState(false);
   const [mapTheme, setMapTheme] = useState<'dark' | 'light'>('dark');
   const mode = params.get('mode') === 'heatmap' ? 'heatmap' : 'clusters';
-  const metric = params.get('metric') === 'users' ? 'users' : 'events';
+  const metric = params.get('metric') === 'users' ? 'users' : params.get('metric') === 'visits' ? 'visits' : 'events';
   const granularity = params.get('granularity') || 'auto';
   const q = new URLSearchParams(query);
   for (const key of [
@@ -158,7 +161,8 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
               legacy
                 ? update('success', e.target.value)
                 : updateMany({
-                    scope: e.target.value === 'all' ? 'events' : 'logins',
+                    scope: e.target.value === 'visits' ? 'visits' : e.target.value === 'all' ? 'events' : 'logins',
+                    ...(e.target.value === 'visits' ? { event: '', metric: 'visits' } : {}),
                     success: ['success', 'failure'].includes(e.target.value) ? e.target.value : 'all',
                   })
             }
@@ -167,6 +171,7 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
             <option value="failure">Failed logins</option>
             <option value="all">{legacy ? 'All login events' : 'All events'}</option>
             {!legacy && <option value="logins">All login events</option>}
+            {!legacy && <option value="visits">Website visits</option>}
           </select>
         </label>
         <label>
@@ -177,7 +182,8 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
             onChange={(e) => update('metric', e.target.value)}
           >
             <option value="events">{legacy ? 'Total login events' : 'Total events'}</option>
-            <option value="users">Unique users</option>
+            <option value="users">{visits ? 'Unique visitors' : 'Unique users'}</option>
+            <option value="visits">Total visits (sessions)</option>
           </select>
         </label>
         <label>
@@ -282,6 +288,12 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
           <div className="geo-summary summary-grid">
             {[
               ['Countries', number(data.summary.countries), 'In the selected period'],
+              ['Total visits', number(data.summary.totalVisits), 'Distinct sessions in this selection'],
+              [
+                visits ? 'Unique visitors' : 'Unique users',
+                number(data.summary.uniqueUsers),
+                'Project-scoped identities',
+              ],
               [
                 legacy ? 'Geolocated Logins' : 'Geolocated Events',
                 number(legacy ? data.summary.geolocatedLogins : data.summary.geolocatedEvents),
@@ -291,7 +303,11 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
               [
                 'Most Active Location',
                 data.summary.mostActiveLocation || '—',
-                metric === 'users' ? 'By project-scoped unique users' : 'By total events',
+                metric === 'users'
+                  ? 'By project-scoped unique users'
+                  : metric === 'visits'
+                    ? 'By distinct sessions'
+                    : 'By total events',
               ],
               ['New Countries', number(data.summary.newCountries.length), 'First seen in retained history'],
               [
@@ -399,6 +415,7 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
                           ['city', 'Location'],
                           ['countryName', 'Country'],
                           ['totalEvents', eventLabel],
+                          ['totalVisits', 'Visits (sessions)'],
                           ['uniqueUsers', 'Unique users'],
                           ['percentage', 'Share'],
                           ['firstSeen', 'First seen (UTC)'],
@@ -436,12 +453,17 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
                         </td>
                         <td>{p.countryName}</td>
                         <td>{number(p.totalEvents)}</td>
+                        <td>{number(p.totalVisits)}</td>
                         <td>{number(p.uniqueUsers)}</td>
                         <td>{p.percentage.toFixed(1)}%</td>
                         <td>{date(p.firstSeen)}</td>
                         <td>{date(p.lastSeen)}</td>
                         <td>
-                          {(metric === 'users' ? p.previousUsers : p.previousEvents) === 0
+                          {(metric === 'users'
+                            ? p.previousUsers
+                            : metric === 'visits'
+                              ? p.previousVisits
+                              : p.previousEvents) === 0
                             ? 'First activity'
                             : `${p.trend > 0 ? '+' : ''}${p.trend.toFixed(1)}%`}
                         </td>
@@ -454,8 +476,9 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
               <Empty title="No locations to compare" />
             )}
             <p className="geo-footnote">
-              Unique users are scoped to each project and can appear in more than one location. Unknown locations remain
-              in the share denominator.
+              Visits count distinct sessions; Website visits includes only page views. Visitors and sessions can appear
+              in more than one location and are scoped to each project. Unknown locations remain in the share
+              denominator.
             </p>
           </Panel>
         </>
@@ -473,6 +496,7 @@ function LocationDetails({ point: p, eventLabel }: { point: GeographyPoint; even
       <dl>
         {[
           [eventLabel, number(p.totalEvents)],
+          ['Visits (sessions)', number(p.totalVisits)],
           ['Unique users', number(p.uniqueUsers)],
           ['Share of selection', `${p.percentage.toFixed(1)}%`],
           ['First seen (UTC)', new Date(p.firstSeen).toISOString()],

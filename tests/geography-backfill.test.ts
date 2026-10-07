@@ -160,7 +160,7 @@ test('migration 3 upgrades version 2 and preserves enriched login metadata', asy
       (await db.query<{ version: number }>('SELECT version FROM schema_migrations ORDER BY version')).map(
         (r) => r.version,
       ),
-      [1, 2, 3],
+      [1, 2, 3, 4],
     );
   } finally {
     await db.close();

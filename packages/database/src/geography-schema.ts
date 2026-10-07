@@ -67,3 +67,23 @@ export function eventGeographySchemaStatements(dialect: 'sqlite' | 'azure'): str
       : "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_event_geography_scope' AND object_id = OBJECT_ID('dbo.events')) CREATE INDEX ix_event_geography_scope ON dbo.events (project_id, event_environment, event_name, timestamp);",
   ];
 }
+
+export function cloudflareGeographySchemaStatements(dialect: 'sqlite' | 'azure'): string[] {
+  const columns = {
+    region_code: 'VARCHAR(16)',
+    postal_code: 'VARCHAR(24)',
+    cloudflare_colo: 'VARCHAR(16)',
+    network_asn: 'BIGINT',
+    network_organization: 'NVARCHAR(200)',
+  };
+  return [
+    ...Object.entries(columns).map(([name, type]) =>
+      dialect === 'sqlite'
+        ? `ALTER TABLE events ADD COLUMN ${name} ${type} NULL;`
+        : `IF COL_LENGTH('dbo.events', '${name}') IS NULL ALTER TABLE dbo.events ADD ${name} ${type} NULL;`,
+    ),
+    dialect === 'sqlite'
+      ? 'CREATE INDEX IF NOT EXISTS ix_geo_visits ON events (project_id, event_name, timestamp, country_code, region, city);'
+      : "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'ix_geo_visits' AND object_id = OBJECT_ID('dbo.events')) CREATE INDEX ix_geo_visits ON dbo.events (project_id, event_name, timestamp, country_code, region, city);",
+  ];
+}

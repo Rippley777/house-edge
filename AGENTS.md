@@ -63,8 +63,9 @@ them, or invent substitutes.
 - **Save Scum**
 - **Stacked Deck**
 - **Diffusion**
-- **Algebra Quest**
+- **Questbook** (working name; includes the **Algebra Quest** campaign)
 - **Sudo Survive**
+- **Shuffle**
 
 Important naming corrections:
 
@@ -149,8 +150,10 @@ House Edge is not the source of truth for tasks, invoices, repositories, equipme
 | Stacked Deck    | Equipment tracking, scanning, valuation, and inventory                | Uses AI models and optional value-history analytics                 |
 | Shelf Life      | Media tracking, scanning, valuation, and inventory                    | Uses AI models and optional value-history analytics                 |
 | Diffusion       | Visual comparison tool for files, images, and code                    | May be opened by other developer tools for comparison workflows     |
-| Algebra Quest   | Gamified Algebra 1 learning                                           | Uses profiles, points, badges, and learning analytics               |
+| Questbook       | Subject-agnostic gamified learning; private content, homework capture, creator tools, and accepted learning relationships | Owns learner content, accounts, shared progress and friend challenges; includes Algebra Quest; optional House Edge telemetry |
+| Algebra Quest   | Flagship Algebra I campaign within Questbook                          | Preserves existing local campaign progress and deterministic math engine |
 | Sudo Survive    | Hacking simulation and PvP game                                       | Uses player profiles, progression, and game telemetry               |
+| Shuffle         | Subscription management, household value tracking, and approved subscription rotations | Owns subscriptions, queues, plans, evidence, and savings; optional financial, catalog, and AI adapters |
 
 ---
 
@@ -203,6 +206,7 @@ Examples:
 - Black Box owns workflow definitions and workflow runs.
 - House Edge owns analytics events and derived metrics.
 - Shipwreck owns ecosystem navigation and launcher preferences.
+- Shuffle owns household subscriptions, desire queues, usage reports, rotation plans, billing-action evidence, savings provenance, and encrypted provider connections. It never stores third-party subscription passwords. AI proposals cannot execute billing changes without deterministic validation and explicit user approval.
 
 Applications must not directly write into another application's database.
 

@@ -42,6 +42,7 @@ flowchart TB
     subgraph Productivity["Productivity & Work"]
         Deck["Deck"]
         RunningTab["Running Tab"]
+        Shuffle["Shuffle"]
     end
 
     subgraph DeveloperTools["Developer Tools"]
@@ -59,7 +60,7 @@ flowchart TB
     end
 
     subgraph LearningGames["Learning & Games"]
-        AlgebraQuest["Algebra Quest"]
+        AlgebraQuest["Questbook / Algebra Quest"]
         SudoSurvive["Sudo Survive"]
     end
 
@@ -67,6 +68,7 @@ flowchart TB
 
     Shipwreck --> Deck
     Shipwreck --> RunningTab
+    Shipwreck -. planned discovery link .-> Shuffle
     Shipwreck --> RepoReaper
     Shipwreck --> PortAuthority
     Shipwreck --> EnvReaper
@@ -145,6 +147,9 @@ flowchart TB
 | Repo Reaper     | GitHub          | Repository metadata and analysis                         |
 | README Roulette | GitHub          | Repository documentation inputs and outputs              |
 | Stacked Deck    | AI provider     | Image scanning, identification, and valuation assistance |
+| Shuffle         | Plaid           | Optional recurring-transaction candidates; explicit subscription confirmation required |
+| Shuffle         | TMDB / JustWatch | Optional regional content mappings; unknown season and plan restrictions stay explicit |
+| Shuffle         | OpenRouter / Anthropic | Optional encrypted BYOK or operator-entitled managed AI; proposals only |
 
 ---
 
@@ -163,6 +168,15 @@ Do not treat browser redirects as proof of payment.
 ### Analytics
 
 Products should emit stable event names and avoid sending sensitive content.
+
+Rippley Labs forwards its existing browser analytics through a Cloudflare Worker on
+the same-origin analytics route. The Worker adds approximate network geography from
+`request.cf`, using the optional server-only `location.version=1` House Edge contract.
+It preserves event/session identities; House Edge owns the structured geography,
+retention, geographic aggregation and clustered map. Raw IP is transient, with only
+an optional keyed hash retained. GPS is never requested. The Azure/local relay works
+without geography when Cloudflare metadata is unavailable. Deploy House Edge's
+additive migration 004 and collector before enabling the website Worker.
 
 ### AI
 
@@ -201,6 +215,40 @@ Document major decisions below.
 **Reason:** Metrics can evolve independently from application databases.
 
 ---
+
+### ADR-004: Questbook Generalizes Algebra Quest
+
+**Decision:** Questbook is the working name for the subject-agnostic learning platform. Algebra Quest remains its flagship Algebra I campaign.
+
+**Ownership:** Private browser-local Questbooks, subjects, courses, units, skills, questions, quests, homework images, attempts, mastery, XP transactions, badges and records belong to Questbook. The original Algebra campaign save remains compatible.
+
+**Integration:** Existing House Edge project identity remains `algebra-quest`; no new Black Box event contract or shared database is introduced. Printed-text OCR runs locally using self-hosted assets. An optional user-configured HTTPS provider can extract richer content or generate practice only through explicit user actions, with runtime validation and mandatory review. No public sharing or cloud identity is required.
+
+### ADR-005: Questbook AI Practice Remains Optional
+
+**Decision:** Basic Quest Scan and local learning remain free. AI Practice Generator is available through a tested, memory-only BYOK session or an authorized Questbook Pro account. Structured questions and cached learning context drive generation; homework images are not resent for practice.
+
+**Ownership:** Original questions remain separate from generated Practice Packs. Questbook owns provenance, verification state, private feedback, generation history and usage accounting. Generated content uses the existing universal question model and reward engine; deterministic mathematical answers are independently checked, with separate AI review for other content.
+
+**Deployment and security:** The frontend stays a static export. An optional Azure Static Web Apps managed function authorizes Pro through the trusted authenticated identity and `questbook_pro` role. Hosted provider secrets remain server-side. A private Questbook-owned Azure Storage Table atomically enforces configurable monthly request limits and stores content-free usage records. Local/BYOK use requires no cloud login. Billing/role provisioning is operator-configured, not inferred from client state. No House Edge or Black Box integration contract changes.
+
+### ADR-006: Questbook Relationships Require Student Acceptance
+
+**Decision:** Optional signed-in student, parent and teacher accounts add parent–student, teacher–student and student friendship relationships. Students explicitly accept invitations before monitoring or comparisons are allowed. Either participant can revoke a connection; reconnecting requires fresh consent.
+
+**Ownership:** Questbook owns cloud account profiles, single-use hashed invitations, accepted relationships, opt-in shared progress summaries and friend challenge results in a private Questbook Azure Storage Table. Browser-local learning saves, authored content and homework remain local; publishing summaries does not merge or synchronize learning saves across devices.
+
+**Deployment and security:** The existing static frontend and optional SWA managed API architecture remain. SWA supplies authenticated provider identity; server-side relationship checks restrict access. Parents and teachers can read shared aggregate progress and skill mastery; friends can read aggregate totals and enter mutually accepted, server-graded Algebra challenge quests. Revocable device permissions control automatic summary publishing. Accounts and challenges do not require Pro. House Edge and Black Box integration contracts remain unchanged, and no shared application database or ecosystem-wide identity contract is introduced.
+
+### ADR-007: Shuffle Owns Subscription Strategy and Evidence
+
+**Decision:** Shuffle is an independently deployable, mobile-first subscription planning application. React and Capacitor clients share the same versioned API, household data, deterministic optimizer, and AI adapters. Its initial server uses a private relational SQLite database on persistent local disk; it does not share another application's tables or runtime.
+
+**Boundary:** AI produces reviewable proposals. An owner approves a specific billing action; the deterministic server validates current state and permissions. Provider authentication happens directly with the provider. Guided activation, pause, plan changes, and cancellation require separately recorded evidence, with user reports distinguished from independent verification. Savings have a frozen baseline and provenance; projections never become realized savings solely because a recommendation was accepted.
+
+**Integrations:** Plaid, TMDB/JustWatch, OpenRouter, and Anthropic are optional adapters. No provider credentials are required for manual subscription management. Black Box routing, House Edge telemetry, shared identity, and a live Shipwreck link are planned extension points, not active integrations. Existing ecosystem applications and contracts are unchanged. Shuffle requires its own deployment, secrets, and native release configuration.
+
+**Preview deployment:** A dedicated Azure App Service F1 Free plan hosts the web app and API at `https://shuffle-preview-daac2bd8.azurewebsites.net`. Explicit sample-only mode uses isolated seeded households and in-memory SQLite, resetting on host restart. Real accounts and external credentials are disabled. No paid resources or active cross-application contracts are introduced; persistent production storage remains a separate release requirement.
 
 ## Open Architecture Questions
 

@@ -7,6 +7,11 @@ export interface GeoLocation {
   latitude: number | null;
   longitude: number | null;
   timezone: string | null;
+  regionCode?: string | null;
+  postalCode?: string | null;
+  colo?: string | null;
+  asn?: number | null;
+  networkOrganization?: string | null;
   accuracyLevel: LocationAccuracy;
   accuracyRadius: number | null;
   provider: string;
@@ -22,10 +27,10 @@ export interface GeographyFilters {
   project?: string;
   environment?: string;
   provider?: string;
-  scope?: 'events' | 'logins';
+  scope?: 'events' | 'logins' | 'visits';
   event?: string;
   success?: 'success' | 'failure' | 'all';
-  metric?: 'events' | 'users';
+  metric?: 'events' | 'users' | 'visits';
   country?: string;
   region?: string;
   minEvents?: number;
@@ -42,11 +47,13 @@ export interface GeographyPoint {
   accuracyLevel: LocationAccuracy;
   accuracyRadius: number | null;
   totalEvents: number;
+  totalVisits: number;
   uniqueUsers: number;
   percentage: number;
   firstSeen: string;
   lastSeen: string;
   previousEvents: number;
+  previousVisits: number;
   previousUsers: number;
   trend: number;
   applications: string[];
@@ -60,6 +67,7 @@ export interface GeographyData {
   locations: GeographyPoint[];
   summary: {
     totalEvents: number;
+    totalVisits: number;
     geolocatedEvents: number;
     totalLogins: number;
     uniqueUsers: number;

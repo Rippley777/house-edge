@@ -4,7 +4,7 @@ import { config as loadEnv } from 'dotenv';
 import type Sqlite from 'better-sqlite3';
 import type * as MSSQL from 'mssql';
 import { schemaStatements } from './schema';
-import { geographySchemaStatements, eventGeographySchemaStatements } from './geography-schema';
+import { geographySchemaStatements, eventGeographySchemaStatements, cloudflareGeographySchemaStatements } from './geography-schema';
 
 export type Params = Record<string, string | number | null>;
 export interface Connection {
@@ -112,6 +112,10 @@ export async function migrate(db: Connection) {
     if (!(await tx.query('SELECT version FROM schema_migrations WHERE version = 3')).length) {
       for (const statement of eventGeographySchemaStatements(db.dialect)) await tx.execute(statement);
       await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (3, @now)', { now: new Date().toISOString() });
+    }
+    if (!(await tx.query('SELECT version FROM schema_migrations WHERE version = 4')).length) {
+      for (const statement of cloudflareGeographySchemaStatements(db.dialect)) await tx.execute(statement);
+      await tx.execute('INSERT INTO schema_migrations (version, applied_at) VALUES (4, @now)', { now: new Date().toISOString() });
     }
   });
 }

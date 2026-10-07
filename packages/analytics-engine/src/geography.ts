@@ -8,10 +8,10 @@ import { countryLocation, geographyEnabled } from '@house-edge/database/geolocat
 export const geographyFilterSchema = z.object({
   environment: z.enum(['production', 'staging', 'development', 'test']).optional(),
   provider: z.string().max(80).optional(),
-  scope: z.enum(['events', 'logins']).default('events'),
+  scope: z.enum(['events', 'logins', 'visits']).default('events'),
   event: z.string().trim().min(1).max(120).optional(),
   success: z.enum(['success', 'failure', 'all']).default('all'),
-  metric: z.enum(['events', 'users']).default('events'),
+  metric: z.enum(['events', 'users', 'visits']).default('events'),
   country: z
     .string()
     .regex(/^[A-Z]{2}$/)
@@ -37,6 +37,7 @@ function scope(f: GeographyFilters, history = false) {
     }
   }
   if (f.scope === 'logins') clause += ' AND e.login_success IS NOT NULL';
+  if (f.scope === 'visits') clause += " AND e.event_name = 'page_view'";
   if (f.success !== 'all') {
     clause += ' AND e.login_success = @success';
     params.success = f.success === 'failure' ? 0 : 1;
@@ -73,6 +74,7 @@ type Aggregate = {
   longitude: number;
   accuracyRadius: number | null;
   totalEvents: number;
+  totalVisits: number;
   uniqueUsers: number;
   firstSeen: string;
   lastSeen: string;
@@ -95,6 +97,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
     locations: [],
     summary: {
       totalEvents: 0,
+      totalVisits: 0,
       geolocatedEvents: 0,
       totalLogins: 0,
       uniqueUsers: 0,
@@ -117,15 +120,17 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
   if (!empty.enabled) return empty;
   const s = scope(f);
   const visitor = db.dialect === 'sqlite' ? identity.replaceAll(' + ', ' || ') : identity;
+  const visit = db.dialect === 'sqlite' ? "e.project_id || ':' || e.session_id" : "e.project_id + ':' + e.session_id";
   const [summary] = await db.query<{
     total: number;
     users: number;
+    visits: number;
     located: number;
     countries: number;
     logins: number;
     locatedLogins: number;
   }>(
-    `SELECT COUNT(*) AS total, COUNT(DISTINCT ${visitor}) AS users,
+    `SELECT COUNT(*) AS total, COUNT(DISTINCT ${visitor}) AS users, COUNT(DISTINCT ${visit}) AS visits,
     COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL THEN 1 ELSE 0 END),0) AS logins,
     COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL AND ${geoValid} THEN 1 ELSE 0 END),0) AS locatedLogins,
     COALESCE(SUM(CASE WHEN ${geoValid} THEN 1 ELSE 0 END),0) AS located,
@@ -177,10 +182,10 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
         db,
         `SELECT e.country_code AS countryCode, e.country_name AS countryName, ${g.region} AS region, ${g.city} AS city, ${g.level} AS accuracyLevel,
       AVG(e.latitude) AS latitude, AVG(e.longitude) AS longitude, MAX(e.accuracy_radius) AS accuracyRadius,
-      COUNT(*) AS totalEvents, COUNT(DISTINCT ${visitor}) AS uniqueUsers, MIN(e.timestamp) AS firstSeen, MAX(e.timestamp) AS lastSeen,
+      COUNT(*) AS totalEvents, COUNT(DISTINCT ${visitor}) AS uniqueUsers, COUNT(DISTINCT ${visit}) AS totalVisits, MIN(e.timestamp) AS firstSeen, MAX(e.timestamp) AS lastSeen,
       SUM(e.is_vpn) AS vpnEvents, SUM(e.is_proxy) AS proxyEvents, SUM(e.is_hosting_provider) AS hostingEvents, SUM(e.is_tor) AS torEvents
       FROM events e WHERE ${w.clause} AND ${geoValid} GROUP BY ${g.cols} HAVING COUNT(*) >= @minimum
-      ORDER BY ${f.metric === 'users' ? 'uniqueUsers' : 'totalEvents'} DESC, countryCode`,
+      ORDER BY ${f.metric === 'users' ? 'uniqueUsers' : f.metric === 'visits' ? 'totalVisits' : 'totalEvents'} DESC, countryCode`,
         501,
       ),
       { ...w.params, minimum: threshold },
@@ -235,6 +240,10 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
     const before = prior.get(locationKey(r));
     const country = countryLocation(r.countryCode);
     const members = membership.filter((m) => locationKey(m) === locationKey(r));
+    const count = f.metric === 'users' ? r.uniqueUsers : f.metric === 'visits' ? r.totalVisits : r.totalEvents;
+    const denominator = f.metric === 'users' ? summary.users : f.metric === 'visits' ? summary.visits : summary.total;
+    const priorCount =
+      f.metric === 'users' ? before?.uniqueUsers : f.metric === 'visits' ? before?.totalVisits : before?.totalEvents;
     return {
       ...r,
       id: createHash('sha256').update(locationKey(r)).digest('hex').slice(0, 16),
@@ -247,15 +256,11 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
           : granularity === 'region'
             ? Math.max(100, r.accuracyRadius || 100)
             : r.accuracyRadius,
-      percentage: (f.metric === 'users' ? summary.users : summary.total)
-        ? (f.metric === 'users' ? r.uniqueUsers / summary.users : r.totalEvents / summary.total) * 100
-        : 0,
+      percentage: denominator ? (count / denominator) * 100 : 0,
       previousEvents: before?.totalEvents || 0,
+      previousVisits: before?.totalVisits || 0,
       previousUsers: before?.uniqueUsers || 0,
-      trend: change(
-        f.metric === 'users' ? r.uniqueUsers : r.totalEvents,
-        f.metric === 'users' ? before?.uniqueUsers || 0 : before?.totalEvents || 0,
-      ),
+      trend: change(count, priorCount || 0),
       applications: [...new Set(members.map((m) => m.application))],
       providers: [...new Set(members.map((m) => m.provider).filter(Boolean))],
     };
@@ -267,6 +272,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
     truncated: rows.length > 500 || membership.length === 10000,
     summary: {
       totalEvents: summary.total,
+      totalVisits: summary.visits,
       geolocatedEvents: summary.located,
       totalLogins: summary.logins,
       uniqueUsers: summary.users,
