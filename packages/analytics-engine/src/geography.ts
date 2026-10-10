@@ -18,6 +18,7 @@ export const geographyFilterSchema = z.object({
     .optional(),
   region: z.string().max(120).optional(),
   minEvents: z.coerce.number().int().min(1).max(1000000).default(1),
+  device: z.enum(['desktop', 'mobile', 'tablet', 'server']).optional(),
   granularity: z.enum(['country', 'region', 'city']).default('city'),
 });
 function scope(f: GeographyFilters, history = false) {
@@ -30,6 +31,7 @@ function scope(f: GeographyFilters, history = false) {
     ['provider', 'auth_provider', f.provider],
     ['country', 'country_code', f.country],
     ['region', 'region', f.region],
+    ['device', 'device_type', f.device],
   ] as const) {
     if (value) {
       clause += ` AND e.${column} = @${key}`;
@@ -45,7 +47,7 @@ function scope(f: GeographyFilters, history = false) {
   return { clause, params };
 }
 // Each person remains scoped to their project; opaque IDs are never returned to the browser.
-const identity = "e.project_id + ':' + COALESCE(e.user_id, e.anonymous_id)";
+const identity = "e.project_id + ':' + e.anonymous_id";
 const geoValid =
   "e.geo_enrichment_status = 'enriched' AND e.country_code IS NOT NULL AND e.latitude IS NOT NULL AND e.longitude IS NOT NULL";
 function grouping(granularity: 'country' | 'region' | 'city') {
@@ -99,6 +101,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
       totalEvents: 0,
       totalVisits: 0,
       geolocatedEvents: 0,
+      knownVisitors: 0,
       totalLogins: 0,
       uniqueUsers: 0,
       geolocatedLogins: 0,
@@ -126,6 +129,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
     users: number;
     visits: number;
     located: number;
+    knownUsers: number;
     countries: number;
     logins: number;
     locatedLogins: number;
@@ -134,13 +138,15 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
     COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL THEN 1 ELSE 0 END),0) AS logins,
     COALESCE(SUM(CASE WHEN e.login_success IS NOT NULL AND ${geoValid} THEN 1 ELSE 0 END),0) AS locatedLogins,
     COALESCE(SUM(CASE WHEN ${geoValid} THEN 1 ELSE 0 END),0) AS located,
-    COUNT(DISTINCT CASE WHEN ${geoValid} THEN e.country_code END) AS countries FROM events e WHERE ${s.clause}`,
+    COUNT(DISTINCT CASE WHEN ${geoValid} THEN ${visitor} END) AS knownUsers, COUNT(DISTINCT CASE WHEN ${geoValid} THEN e.country_code END) AS countries FROM events e WHERE ${s.clause}`,
     s.params,
   );
+  // A region filter must not reveal an otherwise suppressed fine bucket through summary counts.
+  if (f.region && summary.users < 3) return empty;
   const [places] = await db.query<{ cities: number; regions: number }>(
     `SELECT SUM(CASE WHEN city IS NOT NULL THEN 1 ELSE 0 END) AS cities, COUNT(DISTINCT regionKey) AS regions FROM (
       SELECT e.country_code, e.region, e.city, ${db.dialect === 'sqlite' ? "e.country_code || ':' || e.region" : "e.country_code + ':' + e.region"} AS regionKey
-      FROM events e WHERE ${s.clause} AND ${geoValid} GROUP BY e.country_code, e.region, e.city
+      FROM events e WHERE ${s.clause} AND ${geoValid} GROUP BY e.country_code, e.region, e.city HAVING COUNT(DISTINCT ${visitor}) >= 3
     ) known_places`,
     s.params,
   );
@@ -184,11 +190,11 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
       AVG(e.latitude) AS latitude, AVG(e.longitude) AS longitude, MAX(e.accuracy_radius) AS accuracyRadius,
       COUNT(*) AS totalEvents, COUNT(DISTINCT ${visitor}) AS uniqueUsers, COUNT(DISTINCT ${visit}) AS totalVisits, MIN(e.timestamp) AS firstSeen, MAX(e.timestamp) AS lastSeen,
       SUM(e.is_vpn) AS vpnEvents, SUM(e.is_proxy) AS proxyEvents, SUM(e.is_hosting_provider) AS hostingEvents, SUM(e.is_tor) AS torEvents
-      FROM events e WHERE ${w.clause} AND ${geoValid} GROUP BY ${g.cols} HAVING COUNT(*) >= @minimum
+      FROM events e WHERE ${w.clause} AND ${geoValid} GROUP BY ${g.cols} HAVING COUNT(*) >= @minimum AND COUNT(DISTINCT ${visitor}) >= @privacyMinimum
       ORDER BY ${f.metric === 'users' ? 'uniqueUsers' : f.metric === 'visits' ? 'totalVisits' : 'totalEvents'} DESC, countryCode`,
         501,
       ),
-      { ...w.params, minimum: threshold },
+      { ...w.params, minimum: threshold, privacyMinimum: granularity === 'country' && !filter.region ? 1 : 3 },
     );
   };
   let granularity = f.granularity;
@@ -260,6 +266,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
       previousEvents: before?.totalEvents || 0,
       previousVisits: before?.totalVisits || 0,
       previousUsers: before?.uniqueUsers || 0,
+      previousSuppressed: (granularity !== 'country' || !!f.region) && !before,
       trend: change(count, priorCount || 0),
       applications: [...new Set(members.map((m) => m.application))],
       providers: [...new Set(members.map((m) => m.provider).filter(Boolean))],
@@ -274,6 +281,7 @@ export async function eventGeography(db: Connection, filters: GeographyFilters):
       totalEvents: summary.total,
       totalVisits: summary.visits,
       geolocatedEvents: summary.located,
+      knownVisitors: summary.knownUsers,
       totalLogins: summary.logins,
       uniqueUsers: summary.users,
       geolocatedLogins: summary.locatedLogins,

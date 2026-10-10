@@ -62,6 +62,7 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
     'success',
     'metric',
     'minEvents',
+    'device',
     'sample',
   ]) {
     const value = params.get(key);
@@ -106,6 +107,7 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
     q.get('provider'),
     q.get('country'),
     q.get('region'),
+    q.get('device'),
   ].join('|');
   const stableFitKey = useRef(fitKey);
   if (!result.loading) stableFitKey.current = fitKey;
@@ -122,7 +124,24 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
   };
   return (
     <div className="geography-view" aria-busy={result.loading}>
+      <p className="fine-print">
+        Approximate locations. Region and city buckets require at least 3 distinct anonymous visitors in each period.
+        Choose country detail to see smaller groups.
+      </p>
       <div className="geo-controls">
+        <label>
+          Device
+          <select
+            aria-label="Geography device"
+            value={params.get('device') || ''}
+            onChange={(e) => update('device', e.target.value)}
+          >
+            <option value="">All devices</option>
+            {['desktop', 'mobile', 'tablet', 'server'].map((device) => (
+              <option key={device}>{device}</option>
+            ))}
+          </select>
+        </label>
         {!legacy && (
           <label>
             Event name
@@ -288,6 +307,16 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
           <div className="geo-summary summary-grid">
             {[
               ['Countries', number(data.summary.countries), 'In the selected period'],
+              [
+                'Located visitors',
+                number(data.summary.knownVisitors || 0),
+                'Unique anonymous visitors with known geography',
+              ],
+              [
+                'Unknown geography',
+                `${(data.summary.totalEvents ? 100 - data.summary.coverage : 0).toFixed(1)}%`,
+                'Share of selected events without geography',
+              ],
               ['Total visits', number(data.summary.totalVisits), 'Distinct sessions in this selection'],
               [
                 visits ? 'Unique visitors' : 'Unique users',
@@ -459,13 +488,15 @@ export function LoginGeography({ view, query, refresh, setGeographyDetail }: Vie
                         <td>{date(p.firstSeen)}</td>
                         <td>{date(p.lastSeen)}</td>
                         <td>
-                          {(metric === 'users'
-                            ? p.previousUsers
-                            : metric === 'visits'
-                              ? p.previousVisits
-                              : p.previousEvents) === 0
-                            ? 'First activity'
-                            : `${p.trend > 0 ? '+' : ''}${p.trend.toFixed(1)}%`}
+                          {p.previousSuppressed
+                            ? 'Unavailable / private'
+                            : (metric === 'users'
+                                  ? p.previousUsers
+                                  : metric === 'visits'
+                                    ? p.previousVisits
+                                    : p.previousEvents) === 0
+                              ? 'First activity'
+                              : `${p.trend > 0 ? '+' : ''}${p.trend.toFixed(1)}%`}
                         </td>
                       </tr>
                     ))}

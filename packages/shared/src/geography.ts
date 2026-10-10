@@ -33,6 +33,7 @@ export interface GeographyFilters {
   metric?: 'events' | 'users' | 'visits';
   country?: string;
   region?: string;
+  device?: 'desktop' | 'mobile' | 'tablet' | 'server';
   minEvents?: number;
   granularity?: 'country' | 'region' | 'city';
 }
@@ -56,6 +57,7 @@ export interface GeographyPoint {
   previousVisits: number;
   previousUsers: number;
   trend: number;
+  previousSuppressed?: boolean;
   applications: string[];
   providers: string[];
   vpnEvents: number | null;
@@ -69,6 +71,7 @@ export interface GeographyData {
     totalEvents: number;
     totalVisits: number;
     geolocatedEvents: number;
+    knownVisitors?: number;
     totalLogins: number;
     uniqueUsers: number;
     geolocatedLogins: number;

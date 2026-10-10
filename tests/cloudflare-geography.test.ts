@@ -139,7 +139,7 @@ test('partial, absent and malformed metadata never block analytics; countries de
     assert.notEqual(r.location_accuracy_level, 'city');
     assert.notEqual(r.latitude, 1000);
   }
-  const result = await map();
+  const result = await map({ granularity: 'country' });
   assert.equal(result.summary.totalEvents, 9);
   assert.ok(result.summary.unknownLocations > 0);
 });
@@ -165,7 +165,7 @@ test('duplicate IDs, multiple pages and returning visitors preserve counts, sess
   assert.equal(rows.length, 5);
   assert.ok(rows.every((r) => r.city === 'Fort Worth'));
   assert.equal((await db.query('SELECT * FROM sessions')).length, 3);
-  const result = await map();
+  const result = await map({ granularity: 'country' });
   assert.equal(result.summary.totalEvents, 4);
   assert.equal(result.summary.totalVisits, 3);
   assert.equal(result.summary.uniqueUsers, 2);
@@ -185,8 +185,8 @@ test('map API aggregates country/region/city, applies exact date and project fil
     event({ sessionId: 'b', anonymousId: 'b', location: location({ city: 'Dallas', longitude: -96.8 }) }),
     event({ event: 'session_start', sessionId: 'c' }),
   ]);
-  assert.equal((await map()).locations.length, 2);
-  for (const granularity of ['country', 'region']) {
+  assert.equal((await map()).locations.length, 0, 'city buckets below three visitors are suppressed');
+  for (const granularity of ['country']) {
     const data = await map({ granularity });
     assert.equal(data.locations.length, 1);
     assert.equal(data.locations[0].totalVisits, 2);
@@ -194,7 +194,8 @@ test('map API aggregates country/region/city, applies exact date and project fil
   }
   const recent = await map({ from: new Date(now - 60000).toISOString(), to: new Date(now + 60000).toISOString() });
   assert.equal(recent.summary.totalEvents, 1);
-  assert.equal(recent.locations[0].city, 'Dallas');
+  assert.equal(recent.locations.length, 0);
+  assert.equal((await map({ granularity: 'region' })).locations.length, 0);
   assert.equal((await map({ project: randomUUID() })).locations.length, 0);
   assert.equal((await map({ country: 'GB' })).locations.length, 0);
 });
@@ -225,4 +226,20 @@ test('disabled or production-only geography does not collect location', async ()
   await send([event()]);
   const rows = await db.query('SELECT * FROM events');
   assert.ok(rows.every((r) => r.latitude === null && r.ip_hash === null && r.postal_code === null));
+});
+
+test('fine geography requires three distinct anonymous visitors, including filtered comparisons', async () => {
+  await send(Array.from({ length: 8 }, () => event()));
+  assert.equal((await map()).locations.length, 0, 'repeated events do not satisfy the privacy threshold');
+  await send([
+    event({ anonymousId: 'second', deviceType: 'mobile' }),
+    event({ anonymousId: 'third', deviceType: 'mobile' }),
+  ]);
+  const result = await map();
+  assert.equal(result.locations.length, 1);
+  assert.equal(result.locations[0].uniqueUsers, 3);
+  assert.equal(result.summary.knownVisitors, 3);
+  assert.equal((await map({ device: 'mobile' })).locations.length, 0);
+  assert.equal((await map({ device: 'mobile', region: 'Texas' })).summary.totalEvents, 0);
+  assert.equal((await map({ granularity: 'country', device: 'mobile' })).locations[0].uniqueUsers, 2);
 });

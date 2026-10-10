@@ -21,9 +21,16 @@ Run `npm run geo:verify -- /path/to/rippley-labs` for an isolated, persistent SQ
 Every accepted event is eligible for enrichment; browser SDK auto-tracked events need no changes. Event names remain unchanged. Optional `environment` defaults to the project environment. Server events may include top-level `sourceIp`, accepted only with a server ingestion key. The Node SDK supports both in its third `track` argument. These additive fields do not change existing clients.
 
 ```ts
-analytics.track('checkout_completed', { amount: 42 }, {
-  sessionId, anonymousId, sourceIp: trustedClientIp, environment: 'production',
-});
+analytics.track(
+  'checkout_completed',
+  { amount: 42 },
+  {
+    sessionId,
+    anonymousId,
+    sourceIp: trustedClientIp,
+    environment: 'production',
+  },
+);
 await analytics.flush();
 ```
 
@@ -153,7 +160,7 @@ Run `npm run geo:backfill -- /private/source.ndjson .data/backfill-state.json` w
 
 Authenticated `GET /api/geography` defaults to all events and accepts `event` (exact event name), `scope=events|logins`, `from`, `to`, `project` (project UUID or `all`), `environment`, `provider`, `success=success|failure|all` (default `all`; success/failure restrict to login outcomes), `metric=events|users`, `country` (ISO two-letter uppercase), `region`, `minEvents`, and `granularity=country|region|city`. Date ranges follow the dashboard's 366-day cap. Responses include `summary.totalEvents` and `summary.geolocatedEvents`; legacy login count fields count actual login events only. Responses contain aggregate locations, counts, selected-period first/last time, equivalent previous-period trend, application/provider sets, optional risk counts, and summary coverage/new countries/unknown counts. CSV exports and saved views support this screen. SQL parameters cover all values; only validated enum choices select query shapes. Administrative authentication and the existing single-owner workspace apply. Ingestion keys are project-scoped and cannot read analytics. This application has no organizations/RBAC; a project filter is not a multi-tenant authorization system.
 
-Unique users use a project-scoped opaque identified ID when present and the anonymous ID otherwise. They are not deduplicated across projects. A person can be present in multiple locations, so unique-user location shares may sum above 100%. Unknown events stay in the selected denominator. New countries mean first observed within retained geographic history under the current filters, not first ever. Security/travel detection is intentionally omitted because incomplete coverage and device identities are not reliable enough to support it.
+Unique visitors use project-scoped anonymous IDs, consistently with traffic analytics. They are not deduplicated across projects. A person can be present in multiple locations, so unique-user location shares may sum above 100%. Unknown events stay in the selected denominator. New countries mean first observed within retained geographic history under the current filters, not first ever. Security/travel detection is intentionally omitted because incomplete coverage and device identities are not reliable enough to support it.
 
 ## Local development and validation
 
@@ -162,3 +169,9 @@ Real localhost traffic never turns into a location. To inspect UI interactions, 
 MapLibre loads only on the client. Default OpenFreeMap dark/positron styles require network access; configure `NEXT_PUBLIC_GEO_MAP_DARK_STYLE` and `NEXT_PUBLIC_GEO_MAP_LIGHT_STYLE` for your own compatible tile source. Style/renderer failures show a retry message while the table remains usable. The map offers its own light/dark toggle and works independently of the dashboard's current dark-only design.
 
 `npm test` covers proxy trust/spoofing, IPv4/IPv6 exclusions, providers/timeouts/malformed data, asynchronous failure, caching/deduplication, aggregation/filtering/isolation, authorization/privacy, migrations and retention. `npm run test:e2e` covers loading/empty/error states, table-to-map focus, map modes, filters and narrow viewports using deterministic aggregate fixtures. External providers are mocked; no paid/live API is required.
+
+## Fine geography privacy
+
+Region/city aggregate rows require at least three distinct anonymous visitors, regardless of `minEvents`. This applies independently to current and previous periods and to CSV export. A region filter with fewer than three visitors returns no summary. Country aggregation still shows smaller groups; choose country detail when finer rows are suppressed. Previous fine-period counts that fail the threshold are marked `previousSuppressed` and displayed as unavailable/private, not evidence of new traffic. This is basic bucket suppression, not differential privacy or protection against all overlapping-query inference by the authorized workspace owner.
+
+`device=desktop|mobile|tablet|server` filters SQL aggregates. `summary.knownVisitors` counts distinct anonymous visitors with known geography. Visits are distinct sessions; page views are event counts under `scope=visits`. Neither is labeled as the other. Legacy browser `country` is ignored at collection. Trusted server geography continues through the existing versioned envelope; no additional geographic data is collected by the SDK.

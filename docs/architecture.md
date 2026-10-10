@@ -35,23 +35,23 @@ The SDK's default batch target is 20 events and 55 KB, with a 200-event memory q
 
 ## Metric definitions
 
-| Metric | Definition |
-| --- | --- |
-| Visitors | Distinct `(project_id, anonymous_id)` pairs active in the selected event-time window |
-| Active now | Distinct anonymous visitors with events in the last five minutes of the selected endpoint |
-| Sessions | Sessions whose first event falls within the selected window |
-| Average session | Mean first-to-last event time for sessions beginning in range, clipped to the endpoint |
-| Page views | Events named `page_view` |
-| Conversions | Events named `conversion` or `signup` |
-| Conversion rate | Conversion event count divided by sessions started; multiple conversion events in a session can exceed 100% |
-| Error rate | Events named `error` divided by all events, not by requests |
-| Traffic change | Unique-visitor change compared with the immediately preceding window of equal duration |
-| Daily chart users | Daily active visitors, not an additive total of period-unique visitors |
-| Feature adoption | Visitors who triggered a named feature event / project visitors |
-| Repeat usage | Feature users with at least two occurrences in the selected period / feature users |
-| Feature growth | Unique feature users vs. the immediately preceding period |
-| Retention | First-ever anonymous-visitor cohorts; percentage active at each elapsed daily/weekly/30-day period |
-| Error grouping | SHA-256 fingerprint of error name, message, and the first three stack lines |
+| Metric            | Definition                                                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Visitors          | Distinct `(project_id, anonymous_id)` pairs active in the selected event-time window                                                     |
+| Active now        | Distinct anonymous visitors with events in the last five minutes of the selected endpoint                                                |
+| Sessions          | Sessions whose first event falls within the selected window                                                                              |
+| Average session   | Mean first-to-last event time for sessions beginning in range, clipped to the endpoint                                                   |
+| Page views        | Events named `page_view`                                                                                                                 |
+| Conversions       | Events named `conversion` or `signup`                                                                                                    |
+| Conversion rate   | Conversion event count divided by sessions started; multiple conversion events in a session can exceed 100%                              |
+| Error rate        | Events named `error` divided by all events, not by requests                                                                              |
+| Traffic change    | Unique-visitor change compared with the immediately preceding window of equal duration                                                   |
+| Daily chart users | Daily active visitors, not an additive total of period-unique visitors                                                                   |
+| Feature adoption  | Visitors who triggered a named feature event / project visitors                                                                          |
+| Repeat usage      | Feature users with at least two occurrences in the selected period / feature users                                                       |
+| Feature growth    | Unique feature users vs. the immediately preceding period                                                                                |
+| Retention         | First-ever anonymous-visitor cohorts; percentage active at each elapsed daily/weekly/30-day period                                       |
+| Error grouping    | SHA-256 fingerprint of scrubbed name/message and three stack frames, with volatile numbers/IDs normalized and synthetic errors separated |
 
 Anonymous visitor IDs are intentionally scoped per project. The ecosystem visitor count is the sum of project-scoped people; it is not a deduplicated real-person count across products. `identify()` attaches an opaque ID but does not merge two devices or historical anonymous IDs.
 
@@ -90,3 +90,11 @@ Origin restrictions help prevent accidental browser misuse; a public browser key
 ## Login Geography
 
 [Event Geography](geography.md) enriches every event type and extends existing events with nullable login/geographic metadata. Short-lived encrypted work inputs are enriched after the collector response through provider adapters; the database-backed worker also runs during maintenance. SQL aggregates, project-scoped unique counts, bounded map points, and explicit event-field projections preserve the existing single-owner authorization and privacy boundaries.
+
+## Analytics loop additions
+
+Migration 005 adds nullable `events.received_at`. Newly persisted events use server time; historical rows remain unknown. Existing client event-time validation and UTC aggregation remain unchanged. Hour/day chart gaps are filled with zero counts and short-window visitors/sessions remain project-scoped. Overview breakdowns use SQL grouping and return at most 20 rows per dimension, measured in page views. New/returning anonymous visitors are relative to the retained first-seen history, not guaranteed lifetime identity.
+
+The errors screen returns at most 200 groups while totals cover all matching groups. Affected-session rate is distinct project/session pairs with at least one error divided by all active project/session pairs in the same period. It is not errors divided by page views. Errors by version/browser and UTC trends use backend aggregates. The deterministic spike indicator requires both twice the prior count and at least ten additional errors; existing maintenance alerts remain the notification system. Group detail shows first occurrence in retained history, versions (up to 20), a representative route and sanitized stack.
+
+Overview traffic cards/tables distinguish a zero prior baseline as new activity. Legacy numeric change fields keep their existing zero-baseline convention for API compatibility; clients should use the supplied prior totals before displaying a percentage.

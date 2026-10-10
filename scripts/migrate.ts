@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { ingestionSchemaStatements } from '../packages/database/src/ingestion-schema';
 import { connect, migrate, schemaStatements } from '@house-edge/database';
 import fs from 'node:fs/promises';
 import {
@@ -37,6 +38,14 @@ for (const dialect of ['sqlite', 'azure'] as const)
       (dialect === 'azure' ? 'SET XACT_ABORT ON;\nBEGIN TRANSACTION;\n' : 'BEGIN IMMEDIATE;\n') +
       cloudflareGeographySchemaStatements(dialect).join(dialect === 'azure' ? '\nGO\n' : '\n\n') +
       `\nINSERT INTO schema_migrations (version, applied_at) SELECT 4, ${dialect === 'azure' ? "CONVERT(VARCHAR(23), SYSUTCDATETIME(), 126) + 'Z'" : "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"} WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 4);\nCOMMIT;\n`,
+  );
+for (const dialect of ['sqlite', 'azure'] as const)
+  await fs.writeFile(
+    `migrations/005_ingestion_received.${dialect}.sql`,
+    '-- Apply after migration 004. Historical receive time is unknown.\n' +
+      (dialect === 'azure' ? 'SET XACT_ABORT ON;\nBEGIN TRANSACTION;\n' : 'BEGIN IMMEDIATE;\n') +
+      ingestionSchemaStatements(dialect).join('\n') +
+      `\nINSERT INTO schema_migrations (version, applied_at) SELECT 5, ${dialect === 'azure' ? "CONVERT(VARCHAR(23), SYSUTCDATETIME(), 126) + 'Z'" : "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')"} WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 5);\nCOMMIT;\n`,
   );
 const db = await connect();
 try {

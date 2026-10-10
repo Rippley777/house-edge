@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-10-08T20:50:23.011Z",
+  "sites": [
+    {
+      "origin": "https://rippleylabs.com",
+      "status": 200,
+      "cloudflare": false,
+      "cspCollectorAllowed": false,
+      "scripts": 10,
+      "analyticsBundled": true,
+      "publicKeyBundled": true,
+      "serverKeyBundled": false,
+      "collectorBundled": true
+    },
+    {
+      "origin": "https://stackeddeck.oddware.dev",
+      "status": 200,
+      "cloudflare": true,
+      "cspCollectorAllowed": true,
+      "scripts": 1,
+      "analyticsBundled": true,
+      "publicKeyBundled": true,
+      "serverKeyBundled": false,
+      "collectorBundled": true
+    }
+  ]
+}

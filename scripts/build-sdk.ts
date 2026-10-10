@@ -2,9 +2,61 @@ import { build } from 'esbuild';
 import fs from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 await fs.mkdir('apps/dashboard/public', { recursive: true });
-await build({ entryPoints: ['node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'], outfile: 'apps/dashboard/public/maplibre-worker.mjs', bundle: true, minify: true, format: 'esm', target: 'es2022' });
-await build({ entryPoints: ['packages/sdk-browser/src/script.ts'], outfile: 'apps/dashboard/public/house-edge.js', bundle: true, minify: true, sourcemap: true, format: 'iife', target: 'es2020' });
-await build({ entryPoints: ['packages/sdk-browser/src/index.ts'], outfile: 'packages/sdk-browser/dist/index.js', bundle: true, minify: true, format: 'esm', target: 'es2020' });
-await build({ entryPoints: ['packages/sdk-node/src/index.ts'], outfile: 'packages/sdk-node/dist/index.js', bundle: true, format: 'esm', platform: 'node', target: 'node20' });
-for (const pkg of ['sdk-browser', 'sdk-node']) execFileSync('npx', ['tsc', `packages/${pkg}/src/index.ts`, '--declaration', '--emitDeclarationOnly', '--outDir', `packages/${pkg}/dist`, '--moduleResolution', 'bundler', '--module', 'esnext', '--target', 'es2022', '--skipLibCheck'], { stdio: 'inherit' });
+await build({
+  entryPoints: ['node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs'],
+  outfile: 'apps/dashboard/public/maplibre-worker.mjs',
+  bundle: true,
+  minify: true,
+  format: 'esm',
+  target: 'es2022',
+});
+await build({
+  entryPoints: ['packages/sdk-browser/src/script.ts'],
+  outfile: 'apps/dashboard/public/house-edge.js',
+  bundle: true,
+  minify: true,
+  sourcemap: true,
+  format: 'iife',
+  target: 'es2020',
+});
+await build({
+  entryPoints: ['packages/sdk-browser/src/index.ts'],
+  outfile: 'packages/sdk-browser/dist/index.js',
+  bundle: true,
+  minify: true,
+  format: 'esm',
+  target: 'es2020',
+});
+await build({
+  entryPoints: ['packages/sdk-node/src/index.ts'],
+  outfile: 'packages/sdk-node/dist/index.js',
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+});
+for (const pkg of ['sdk-browser', 'sdk-node']) {
+  execFileSync(
+    'npx',
+    [
+      'tsc',
+      `packages/${pkg}/src/index.ts`,
+      '--declaration',
+      '--emitDeclarationOnly',
+      '--rootDir',
+      'packages',
+      '--outDir',
+      '.data/sdk-types',
+      '--moduleResolution',
+      'bundler',
+      '--module',
+      'esnext',
+      '--target',
+      'es2022',
+      '--skipLibCheck',
+    ],
+    { stdio: 'inherit' },
+  );
+  await fs.copyFile(`.data/sdk-types/${pkg}/src/index.d.ts`, `packages/${pkg}/dist/index.d.ts`);
+}
 console.log('Browser SDK, script embed, and Node SDK built.');

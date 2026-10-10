@@ -45,7 +45,7 @@ npm run db:migrate
 
 Alternatively, review and execute `migrations/001_initial.azure.sql` through your Azure SQL migration process. The script is idempotent and transactional. The application does not create Azure tables on startup; apply migrations before deploying code that depends on them.
 
-Before deploying Login Geography, also apply `migrations/002_login_geography.azure.sql` with the migration credentials. The runtime account's SELECT/INSERT/UPDATE/DELETE permissions cannot apply this migration. A code redeploy does not update the Azure SQL schema, and `/api/health` currently checks connectivity only; it can return 200 while the geography API fails because migration 002 is missing.
+Before deploying Login Geography, also apply `migrations/002_login_geography.azure.sql` with the migration credentials. The runtime account's SELECT/INSERT/UPDATE/DELETE permissions cannot apply this migration. A code redeploy does not update the Azure SQL schema, and older releases of `/api/health` checked connectivity only. This release requires all five migration records and required columns, so missing schema returns 503.
 
 Do not seed your production database. Seeding Azure is intentionally blocked unless `ALLOW_DEMO_SEED=true`, and the seed command only works on an empty project table.
 
@@ -150,3 +150,9 @@ The local test suite verifies the shared repository and queries against SQLite, 
 ## Login Geography
 
 Apply migrations 002 and 003 before deploying the new collector. Configure dedicated `GEO_QUEUE_KEY` and `GEO_IP_HASH_SALT` secrets for optional IP enrichment, mount a local MMDB or use an HTTPS adapter, and schedule maintenance to enforce the one-hour temporary-input lifetime and geographic retention. Forwarded headers stay untrusted until ingress is explicitly configured. See [Event Geography operations](geography.md).
+
+## Analytics loop release
+
+Apply migration 005 after migrations 001–004 before deploying this release. It adds nullable server receive timestamps without fabricating historical values. `/api/health` now verifies all five migration records and required event columns as well as connectivity, returning 503 if unavailable. Existing environments that previously had a connectivity-only health response may reveal unapplied migrations.
+
+The 2026-10-08 live verification found House Edge's SQL free allowance exhausted, paused through 2026-11-01 00:00 UTC. No paid resume or production redeployment was performed. See [verification evidence and recovery sequence](analytics-loop-verification.md).

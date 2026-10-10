@@ -16,24 +16,24 @@ Install the resulting tarball in another project, use an npm workspace link, or 
 
 The following projects now include the browser SDK, initialization, and `.env.example` settings. Tracking becomes active only after their browser ingestion keys and collector endpoints are configured. Native desktop and CLI sessions are excluded; the browser versions of Tauri projects have an explicit native-runtime guard.
 
-| Application directory | Default House Edge project key | Public environment prefix |
-| --- | --- | --- |
-| `algebra-game` | `algebra-quest` | `NEXT_PUBLIC_` |
-| `readme-roulette` | `readme-roulette` | `NEXT_PUBLIC_` |
-| `rippley-labs` | `rippley-labs` | `NEXT_PUBLIC_` |
-| `shipwreck` | `shipwreck` | `NEXT_PUBLIC_` |
-| `right-to-repair` | `right-to-repair` | `VITE_` |
-| `shelf-life` | `shelf-life` | `VITE_` |
-| `stacked-deck` | `stacked-deck` | `VITE_` |
-| `save-scum/website` | `save-scum-website` | `PUBLIC_` |
-| `deck` (browser) | `deck` | `VITE_` |
-| `env-reaper` (browser) | `env-reaper` | `VITE_` |
-| `pit-boss` (browser demo) | `pit-boss` | `VITE_` |
-| `port-authority` (browser preview) | `port-authority` | `VITE_` |
-| `sudo-survive` (browser) | `sudo-survive` | `VITE_` |
-| `save-scum` (browser demo) | `save-scum` | `VITE_` |
-| `repo-reaper` (Django) | `repo-reaper` | None; runtime configuration |
-| `plant-journal` (Rust) | `plant-journal` | None; runtime configuration |
+| Application directory              | Default House Edge project key | Public environment prefix   |
+| ---------------------------------- | ------------------------------ | --------------------------- |
+| `algebra-game`                     | `algebra-quest`                | `NEXT_PUBLIC_`              |
+| `readme-roulette`                  | `readme-roulette`              | `NEXT_PUBLIC_`              |
+| `rippley-labs`                     | `rippley-labs`                 | `NEXT_PUBLIC_`              |
+| `shipwreck`                        | `shipwreck`                    | `NEXT_PUBLIC_`              |
+| `right-to-repair`                  | `right-to-repair`              | `VITE_`                     |
+| `shelf-life`                       | `shelf-life`                   | `VITE_`                     |
+| `stacked-deck`                     | `stacked-deck`                 | `VITE_`                     |
+| `save-scum/website`                | `save-scum-website`            | `PUBLIC_`                   |
+| `deck` (browser)                   | `deck`                         | `VITE_`                     |
+| `env-reaper` (browser)             | `env-reaper`                   | `VITE_`                     |
+| `pit-boss` (browser demo)          | `pit-boss`                     | `VITE_`                     |
+| `port-authority` (browser preview) | `port-authority`               | `VITE_`                     |
+| `sudo-survive` (browser)           | `sudo-survive`                 | `VITE_`                     |
+| `save-scum` (browser demo)         | `save-scum`                    | `VITE_`                     |
+| `repo-reaper` (Django)             | `repo-reaper`                  | None; runtime configuration |
+| `plant-journal` (Rust)             | `plant-journal`                | None; runtime configuration |
 
 For each application, create a project in a non-demo House Edge workspace and configure exact allowed origins (for example `https://your-app.example` and, for a separate development project, `http://localhost:5173`). Set the prefixed `HOUSE_EDGE_KEY` to its one-time **browser** ingestion key and `HOUSE_EDGE_ENDPOINT` to the full `https://your-house-edge.example/api/collect` URL. `HOUSE_EDGE_PROJECT` overrides the default key. Demo project keys are hashed and cannot be recovered; issue a new browser key if connecting an existing project.
 
@@ -43,7 +43,7 @@ Repo Reaper and Plant Journal instead serve the versioned script from `static/ve
 
 Missing/invalid endpoints or missing keys leave tracking disabled. Development also requires the prefixed `HOUSE_EDGE_TRACK_DEVELOPMENT=true`; production builds enable tracking when configured. All integrations respect Do Not Track. Verify `session_start` and `page_view` in Live Activity after opening a configured site and waiting approximately five seconds, then navigate to another page to verify its path. Pages show aggregate visits, not recordings or arbitrary click capture. Add explicit `houseEdge.track('event_name', { ... })` calls for product-specific actions.
 
-Each JavaScript app uses its checked-in `vendor/house-edge-analytics-0.1.1.tgz`, with no dependency on a sibling checkout. To update the SDK, bump `packages/sdk-browser/package.json`, rebuild and pack it, copy the new tarball into each consumer's `vendor/`, then install that local tarball with the application's package manager and commit its manifest/lockfile. Do not replace an existing version's tarball in place: lockfiles pin its integrity. For Django/Rust, copy the rebuilt `apps/dashboard/public/house-edge.js` into a versioned `static/vendor/` file alongside the SDK license, update the template/asset route, and rebuild or collect static files as appropriate.
+JavaScript apps use checked-in versioned SDK tarballs, with no dependency on a sibling checkout. Stacked Deck and Rippley Labs use `vendor/house-edge-analytics-0.1.2.tgz`; other existing consumers retain 0.1.1. To update the SDK, bump `packages/sdk-browser/package.json`, rebuild and pack it, copy the new tarball into each consumer's `vendor/`, then install that local tarball with the application's package manager and commit its manifest/lockfile. Do not replace an existing version's tarball in place: lockfiles pin its integrity. For Django/Rust, copy the rebuilt `apps/dashboard/public/house-edge.js` into a versioned `static/vendor/` file alongside the SDK license, update the template/asset route, and rebuild or collect static files as appropriate.
 
 ## Browser
 
@@ -100,7 +100,10 @@ export function Analytics() {
         version: process.env.NEXT_PUBLIC_APP_VERSION,
       });
     }, 0);
-    return () => { clearTimeout(timer); houseEdge.destroy(); };
+    return () => {
+      clearTimeout(timer);
+      houseEdge.destroy();
+    };
   }, []);
   return null;
 }
@@ -111,12 +114,13 @@ Add this component once to the root layout. Browser ingestion keys are public by
 ## Script installation
 
 ```html
-<script async
+<script
+  async
   src="https://analytics.example.com/house-edge.js"
   data-project="repo-reaper"
   data-key="YOUR_BROWSER_INGESTION_KEY"
-  data-version="1.4.2">
-</script>
+  data-version="1.4.2"
+></script>
 ```
 
 The collector defaults to `/api/collect` on the script host. Override it with `data-endpoint` when needed. Both project and key attributes are required. The script exports `window.houseEdge`; use optional chaining before the async script finishes loading.
@@ -141,11 +145,15 @@ const analytics = createHouseEdge({
   version: '1.4.2',
 });
 
-analytics.track('api_request', { route: '/api/analyze' }, {
-  sessionId: 'opaque-session-id',
-  anonymousId: 'opaque-visitor-id',
-  userId: 'optional-opaque-user-id',
-});
+analytics.track(
+  'api_request',
+  { route: '/api/analyze' },
+  {
+    sessionId: 'opaque-session-id',
+    anonymousId: 'opaque-visitor-id',
+    userId: 'optional-opaque-user-id',
+  },
+);
 analytics.timing('github_analysis', 1421);
 await analytics.flush();
 ```
@@ -162,7 +170,7 @@ The SDK does not read form controls, keystrokes, authorization headers, browser 
 
 ## Delivery guarantees
 
-The browser client uses asynchronous fetch, a memory-only bounded queue, 8-second request timeouts, and exponential retry up to a 60-second delay. A permanent 4xx response drops the invalid batch; 429, server errors, and network outages retry. Retried events retain their UUIDs. Beacon delivery is best effort and cannot confirm ingestion.
+The browser client uses asynchronous fetch, a memory-only bounded queue, 8-second request timeouts, and exponential retry up to a 60-second delay. A permanent 4xx response drops the invalid batch; 429, server errors, and network outages retry up to five total attempts per batch in SDK 0.1.2. Retried events retain their UUIDs. Beacon delivery is best effort and cannot confirm ingestion.
 
 Analytics must not throw into or block the host application. This is intentionally not a financial transaction ledger: bounded queues and tab shutdown can lose events. Use a durable server-side transactional outbox if a future application needs guaranteed business-event delivery.
 
@@ -177,8 +185,20 @@ Browser auto-tracking and custom events are eligible automatically when collecto
 The Node SDK accepts top-level `sourceIp` and `environment` in each event context, including `track`, `timing`, and `error`. Use only a verified originating client IP and a server ingestion key. Without an explicit client source, server transport is never attributed to users.
 
 ```ts
-analytics.track('checkout_completed', { amount: 42 }, { sessionId, anonymousId, sourceIp: trustedClientIp, environment: 'production' });
+analytics.track(
+  'checkout_completed',
+  { amount: 42 },
+  { sessionId, anonymousId, sourceIp: trustedClientIp, environment: 'production' },
+);
 await analytics.flush();
 ```
 
 See [Event Geography](geography.md) for migration 003, proxy trust, providers, and privacy. Legacy login context is unchanged.
+
+## Browser SDK 0.1.2
+
+Stacked Deck and Rippley Labs now vendor 0.1.2. Other consumers retain their existing package versions. Repeating `init` with the same options while enabled is a no-op. `destroy` aborts an active fetch and invalidates callbacks from the previous initialization. `getStatus()` returns only delivery/configuration state, queue length and dropped count; it never includes keys, events or location. Missing configuration and server-key misuse are visible to integrations without throwing into the host.
+
+A batch is attempted at most five times, including its first request. Exhausted events are dropped from memory and reported by status; later events may try again. A queue remains capped at 200 events; exit beacons remain best-effort. No durable receipt is inferred from a beacon. Session IDs still survive same-tab refresh and expire after 30 minutes without a tracked event.
+
+Referrers retain only the origin. Shared text scrubbing removes URL credentials/query/fragment values, recognizable email/IP strings, bearer credentials and common secret assignments before browser transmission and again at ingestion. This is conservative pattern-based scrubbing, not a general detector for arbitrary personal text. Applications must still keep user content out of custom events. Error stack signatures normalize volatile numbers/IDs for grouping, and `synthetic: true` errors group separately from genuine incidents.

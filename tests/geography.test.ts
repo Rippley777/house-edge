@@ -291,10 +291,10 @@ test('aggregates project-scoped users, provider/result/date filters, totals, tre
   );
   await stage(login({ timestamp: new Date(now - 2 * 86400000).toISOString() }));
   await processGeographyJobs(db, 25, [provider]);
-  const result = await loginGeography(db, { ...f(), project: project.id, granularity: 'city' });
+  const result = await loginGeography(db, { ...f(), project: project.id, granularity: 'country' });
   assert.equal(result.summary.totalLogins, 2);
   assert.equal(result.locations[0].totalEvents, 2);
-  assert.equal(result.locations[0].uniqueUsers, 1);
+  assert.equal(result.locations[0].uniqueUsers, 2);
   assert.equal(result.summary.coverage, 100);
   assert.equal(result.locations[0].percentage, 100);
   assert.equal(result.summary.newCountries.length, 0);
@@ -361,25 +361,25 @@ test('migration 2 upgrades an existing database and is restartable', async () =>
   const versions = await db.query<{ version: number }>('SELECT version FROM schema_migrations ORDER BY version');
   assert.deepEqual(
     versions.map((v) => v.version),
-    [1, 2, 3, 4],
+    [1, 2, 3, 4, 5],
   );
 });
 
 test('large map distributions coarsen in SQL and comparisons only scan the selected locations', async () => {
-  const current = Array.from({ length: 502 }, (_, i) => login({ anonymousId: `visitor-${i}` }));
+  const current = Array.from({ length: 1506 }, (_, i) => login({ anonymousId: `visitor-${i}` }));
   await ingest(db, project, current, { skipRollups: true });
   await db.transaction(async (tx) => {
     for (const [i, e] of current.entries())
       await tx.execute(
         "UPDATE events SET geo_enrichment_status = 'enriched', location_accuracy_level = 'city', country_code = 'US', country_name = 'United States', region = 'Illinois', city = @city, latitude = 41.9, longitude = -87.6 WHERE id = @id",
-        { city: `Test city ${i}`, id: e.id },
+        { city: `Test city ${Math.floor(i / 3)}`, id: e.id },
       );
   });
   const result = await loginGeography(db, { ...f(), granularity: 'city' });
   assert.equal(result.granularity, 'region');
   assert.equal(result.locations.length, 1);
-  assert.equal(result.locations[0].totalEvents, 502);
-  assert.equal(result.locations[0].uniqueUsers, 502);
+  assert.equal(result.locations[0].totalEvents, 1506);
+  assert.equal(result.locations[0].uniqueUsers, 1506);
 });
 
 test('enrichment leases prevent concurrent workers and recover after a crash', async () => {
@@ -459,7 +459,7 @@ test('all event types collect geography with server-only source context and pres
   const exportResponse = await api('export?view=geography&event=error');
   assert.equal(exportResponse.status, 200);
   const csv = await exportResponse.text();
-  assert.ok(csv.includes('Chicago'));
+  assert.ok(!csv.includes('Chicago'), 'fine geography is suppressed in exports too');
   assert.ok(!csv.includes('8.8.8.8'));
   assert.equal((await api('export?view=geography&sample=true')).status, 400);
 });

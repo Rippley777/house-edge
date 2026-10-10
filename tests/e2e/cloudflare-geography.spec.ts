@@ -46,8 +46,8 @@ test('stored Cloudflare page views render as aggregate visitor markers and respo
     };
     return [
       event,
-      { ...event, id: randomUUID() },
-      { ...event, id: randomUUID(), sessionId: `return-${i}` },
+      { ...event, id: randomUUID(), anonymousId: `second-${i}`, sessionId: `second-${i}` },
+      { ...event, id: randomUUID(), sessionId: `return-${i}`, anonymousId: `third-${i}` },
       { ...event, id: randomUUID(), event: 'session_start' },
     ];
   });
@@ -69,8 +69,8 @@ test('stored Cloudflare page views render as aggregate visitor markers and respo
   await expect(page.getByLabel('Event scope')).toHaveValue('visits');
   await expect(page.getByLabel('Event measure')).toHaveValue('visits');
   await expect(page.locator('.geo-table tbody tr')).toHaveCount(7);
-  await expect(page.locator('.summary-card').filter({ hasText: 'Total visits' }).locator('strong')).toHaveText('14');
-  await expect(page.locator('.summary-card').filter({ hasText: 'Unique visitors' }).locator('strong')).toHaveText('7');
+  await expect(page.locator('.summary-card').filter({ hasText: 'Total visits' }).locator('strong')).toHaveText('21');
+  await expect(page.locator('.summary-card').filter({ hasText: 'Unique visitors' }).locator('strong')).toHaveText('21');
   await page.locator('.geo-table tbody tr').filter({ hasText: 'Fort Worth' }).click();
   await expect(page.getByTestId('login-map')).toHaveAttribute('data-camera-center', '-97.3,32.8');
   await expect(page.locator('.geo-details')).toContainText('city-level estimate');
@@ -88,6 +88,6 @@ test('stored Cloudflare page views render as aggregate visitor markers and respo
   const api = await (
     await page.request.get(`/api/geography?project=${project.id}&scope=visits&metric=visits&granularity=city`)
   ).json();
-  expect(api.summary).toMatchObject({ totalEvents: 21, totalVisits: 14, uniqueUsers: 7, countries: 4 });
+  expect(api.summary).toMatchObject({ totalEvents: 21, totalVisits: 21, uniqueUsers: 21, countries: 4 });
   await page.screenshot({ path: 'test-results/cloudflare-geography.png', fullPage: true });
 });

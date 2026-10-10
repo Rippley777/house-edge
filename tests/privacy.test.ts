@@ -4,7 +4,14 @@ import { batchSchema, cleanUrl, sanitizeProperties } from '@house-edge/shared';
 import { redact } from '../packages/sdk-browser/src/index';
 
 test('SDK and collector remove nested secrets, including arrays and key variants', () => {
-  const input = { language: 'Rust', Password: 'secret', accessToken: 'secret', nested: { authorization: 'Bearer secret', safe: 42 }, items: [{ token: 'secret', count: 2 }], customer_name: 'private' };
+  const input = {
+    language: 'Rust',
+    Password: 'secret',
+    accessToken: 'secret',
+    nested: { authorization: 'Bearer secret', safe: 42 },
+    items: [{ token: 'secret', count: 2 }],
+    customer_name: 'private',
+  };
   const expected = { language: 'Rust', nested: { safe: 42 }, items: [{ count: 2 }] };
   assert.deepEqual(sanitizeProperties(input, ['customer_name']), expected);
   assert.deepEqual(redact(input, ['customer_name']), expected);
@@ -15,7 +22,8 @@ test('URL sanitization removes queries and fragments without inventing direct re
   assert.equal(cleanUrl(''), '');
 });
 test('privacy scrubber bounds depth and text size and handles circular objects', () => {
-  const value: Record<string, unknown> = { text: 'a'.repeat(5000) }; value.self = value;
+  const value: Record<string, unknown> = { text: 'a'.repeat(5000) };
+  value.self = value;
   const cleaned = sanitizeProperties(value);
   assert.equal((cleaned.text as string).length, 2048);
   assert.doesNotThrow(() => JSON.stringify(cleaned));
@@ -23,5 +31,23 @@ test('privacy scrubber bounds depth and text size and handles circular objects',
 });
 test('collector rejects invalid payloads, event IDs, and oversized batches', () => {
   assert.equal(batchSchema.safeParse({ projectKey: 'p', key: 'x'.repeat(25), events: [] }).success, false);
-  assert.equal(batchSchema.safeParse({ projectKey: 'p', key: 'x'.repeat(25), events: Array.from({ length: 101 }, () => ({})) }).success, false);
+  assert.equal(
+    batchSchema.safeParse({ projectKey: 'p', key: 'x'.repeat(25), events: Array.from({ length: 101 }, () => ({})) })
+      .success,
+    false,
+  );
+});
+
+test('SDK and collector scrub sensitive free text and keep useful error context', () => {
+  const input = {
+    message:
+      'Failed https://user:pass@example.com/api?token=private#fragment for person@example.com token=hidden 192.0.2.1',
+    stack: 'Error at https://example.com/app.js?secret=hidden:12:42',
+  };
+  for (const result of [redact(input), sanitizeProperties(input)]) {
+    const text = JSON.stringify(result);
+    for (const denied of ['user:pass', 'private', 'fragment', 'person@example.com', 'hidden', '192.0.2.1'])
+      assert.ok(!text.includes(denied), denied);
+    assert.ok(text.includes('example.com/api'));
+  }
 });
