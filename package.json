@@ -36,7 +36,7 @@
     "maplibre-gl": "^6.11.2",
     "maxmind": "^5.0.7",
     "mssql": "^12.7.2",
-    "next": "16.3.7",
+    "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "recharts": "^3.0.0",
